@@ -1,0 +1,46 @@
+# API 配置
+api:
+  # Bearer Token 认证
+  # 留空则禁用认证（开发模式）
+  # 生产环境请设置强密码 token
+  token: "123456"
+  
+  # 输出文件配置
+  output:
+    # 任务输出目录（每个任务一个子目录）
+    tasks_dir: "tasks"
+    # 文件保留时间（小时），超过此时间的文件会被自动清理
+    retention_hours: 8
+    # 流式下载后是否删除文件（推荐 true）
+    delete_after_stream: true
+
+# TTS模型配置
+tts:
+  # 路径配置
+  # 路径配置
+  paths:
+    # 模型根目录 (存放所有模型文件的基础目录)
+    models_root: "models"
+  
+  # 模型默认配置 (运行时)
+  model:
+    runtime_settings:
+      use_cuda_kernel: false # 是否使用 CUDA Kernel
+      use_deepspeed: false   # 是否使用 Deepspeed
+      unload_after_gen: true # 生成完毕后是否释放显存 (节省资源但增加下次生成等待时间)
+
+  # 多版本模型配置
+  versions:
+    "V1.5":
+      module: "app.core.indextts.infer"
+      class_name: "IndexTTS"
+      # 模型目录 (用户需根据实际情况修改)
+      model_dir: "IndexTTS-1.5"
+      config_file: "config.yaml"
+      
+    "V2.0":
+      module: "app.core.indextts.infer_v2"
+      class_name: "IndexTTS2"
+      # 模型目录
+      model_dir: "IndexTTS-2"
+      config_file: "config.yaml"

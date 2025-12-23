@@ -1,0 +1,61 @@
+# =========================
+# Core ML / NLP Frameworks
+# =========================
+transformers==4.52.1
+accelerate==1.8.1
+einops==0.8.1
+tokenizers==0.21.0
+safetensors==0.5.2
+sentencepiece>=0.2.1
+modelscope==1.27.0
+keras==2.9.0
+tensorboard==2.9.1
+
+# =========================
+# Audio Processing
+# =========================
+descript-audiotools==0.7.2
+ffmpeg-python==0.2.0
+librosa==0.10.2.post1
+soundfile==0.12.1
+pydub
+
+# =========================
+# Text Processing / NLP
+# =========================
+g2p-en==2.1.0
+jieba==0.42.1
+cn2an==0.5.22
+textstat>=0.7.10
+
+# =========================
+# Web Framework / API
+# =========================
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+pydantic==2.7.1
+httpx==0.27.0
+python-dotenv==1.0.1
+pyyaml
+
+# =========================
+# Data Science / Utilities
+# =========================
+numpy==1.26.2
+pandas==2.3.2
+matplotlib==3.8.2
+numba==0.58.1
+cython==3.0.7
+tqdm>=4.67.1
+omegaconf>=2.3.0
+munch==4.0.0
+json5==0.10.0
+opencv-python==4.9.0.80
+
+torchcodec
+
+# =========================
+# Conditional Dependencies
+# =========================
+wetext>=0.0.9; sys_platform != 'linux'
+# WeTextProcessing; sys_platform == 'linux'
