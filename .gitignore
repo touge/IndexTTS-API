@@ -182,5 +182,5 @@ cython_debug/
 
 models
 python*
-# tester
-# voices
+tester
+voices
