@@ -81,6 +81,7 @@ class TTSRequestV1_5(BaseModel):
     text: str = Field(..., description="要合成的文本内容")
     spk_audio_prompt: str = Field(..., description="参考音频路径 (用于克隆音色，需为服务器本地路径)")
     output_path: Optional[str] = Field(None, description="输出文件保存路径。如果不提供，系统将自动生成临时路径。")
+    volume: Optional[float] = Field(None, description="音量大小 (0.0 ~ 2.0)，1.0 为原始音量，暂未实现")
     
     # --- 生成控制参数 ---
     # 控制文本分段大小，影响显存占用和生成速度。显存较小时可调小此值。
@@ -110,6 +111,7 @@ class TTSRequestV2_0(BaseModel):
     text: str = Field(..., description="要合成的文本内容")
     spk_audio_prompt: str = Field(..., description="参考音频路径 (作为主音色克隆源)")
     output_path: Optional[str] = Field(None, description="输出文件保存路径")
+    volume: Optional[float] = Field(None, description="音量大小 (0.0 ~ 2.0)，1.0 为原始音量，暂未实现")
     
     # --- 情感控制模式（可选，仅在 /emo_mode/generate 端点使用） ---
     emotion_mode: Optional[EmotionMode] = Field(None, description="情感控制模式（可选）")
