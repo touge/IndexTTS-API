@@ -78,6 +78,22 @@ async def generate_v2_0(
     }
     ```
     
+    ## 字幕生成（可选）
+    
+    在任何情感控制方式下,都可以添加字幕生成参数:
+    ```json
+    {
+        "text": "这是要合成的文本",
+        "spk_audio_prompt": "voices/speaker.wav",
+        "generate_subtitle": true  // 可选，是否生成字幕文件，默认false
+    }
+    ```
+    
+    **参数说明**:
+    - **generate_subtitle** (默认false): 是否生成 SRT 格式字幕文件
+    - 生成的字幕会基于 Whisper 转录和文本对齐
+    - 可通过 `/download/subtitle/{task_id}` 下载字幕文件
+    
     ## 认证
     需要 Bearer Token 认证（如果在 config.yaml 中配置了 token）
     
@@ -206,6 +222,23 @@ async def generate_v2_0_with_emo_mode(
     }
     ```
     **可选参数**: emo_text (不填则使用主文本)
+    
+    ## 字幕生成（可选）
+    
+    在任何 emotion_mode 下,都可以添加字幕生成参数:
+    ```json
+    {
+        "text": "这是要合成的文本",
+        "spk_audio_prompt": "voices/speaker.wav",
+        "emotion_mode": "same_as_speaker",
+        "generate_subtitle": true  // 可选，是否生成字幕文件，默认false
+    }
+    ```
+    
+    **参数说明**:
+    - **generate_subtitle** (默认false): 是否生成 SRT 格式字幕文件
+    - 生成的字幕会基于 Whisper 转录和文本对齐
+    - 可通过 `/download/subtitle/{task_id}` 下载字幕文件
     
     ## 参数验证
     - reference_audio 模式必须提供 emo_audio_prompt，否则返回 400 错误

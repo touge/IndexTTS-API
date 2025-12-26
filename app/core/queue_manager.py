@@ -22,6 +22,7 @@ class TTSRequest:
     params: Dict[str, Any]
     status: TaskStatus = TaskStatus.PENDING
     result: Optional[str] = None
+    subtitle_path: Optional[str] = None  # 字幕文件路径
     error: Optional[str] = None
     created_at: float = field(default_factory=time.time)
 
@@ -106,10 +107,14 @@ class QueueManager:
         # 生成下载链接（仅 completed 状态）
         download_url = None
         file_url = None
+        subtitle_url = None
         if task.status == TaskStatus.COMPLETED:
             # 注意：这里生成的是相对路径，客户端需要拼接完整 URL
             download_url = f"/download/{task.task_id}"
             file_url = f"/files/{task.task_id}"
+            # 如果生成了字幕,添加字幕下载链接
+            if task.subtitle_path:
+                subtitle_url = f"/download/subtitle/{task.task_id}"
         
         return {
             # 顶层基础信息
@@ -124,7 +129,8 @@ class QueueManager:
                 "queue_size": queue_size,
                 "created_timestamp": task.created_at,
                 "download_url": download_url,
-                "file_url": file_url
+                "file_url": file_url,
+                "subtitle_url": subtitle_url
             }
         }
     
@@ -164,13 +170,14 @@ class QueueManager:
                 # 在线程池中运行阻塞的 TTS 生成
                 loop = asyncio.get_event_loop()
                 try:
-                    result_path = await loop.run_in_executor(
+                    audio_path, subtitle_path = await loop.run_in_executor(
                         self.executor, 
                         self._run_inference, 
                         request.version, 
                         request.params
                     )
-                    request.result = result_path
+                    request.result = audio_path
+                    request.subtitle_path = subtitle_path
                     request.status = TaskStatus.COMPLETED
                     logger.info(f"Task completed: {request.task_id}")
                 except Exception as e:
@@ -189,9 +196,14 @@ class QueueManager:
                 logger.error(f"Error in queue processor: {e}", exc_info=True)
                 await asyncio.sleep(1) # 防止死循环
 
-    def _run_inference(self, version: str, params: Dict[str, Any]) -> str:
-        """实际执行推理 (运行在线程池中)"""
-        # 智能模型管理：如果模型版本切换，先卸载旧模型
+    def _run_inference(self, version: str, params: Dict[str, Any]) -> tuple[str, Optional[str]]:
+        """
+        实际执行推理 (运行在线程池中)
+        
+        Returns:
+            (audio_path, subtitle_path): 音频文件路径和字幕文件路径(可选)
+        """
+        # 智能模型管理:如果模型版本切换,先卸载旧模型
         if self.current_loaded_version and self.current_loaded_version != version:
             logger.info(f"Model switch detected: {self.current_loaded_version} -> {version}")
             self._unload_model(self.current_loaded_version)
@@ -213,6 +225,8 @@ class QueueManager:
         logger.info(f"Running inference for {version} with params: {params.keys()}")
 
         try:
+            output_path = None
+            
             if version == "V1.5":
                 # V1.5 use infer wrapper
                 # 适配参数: spk_audio_prompt -> audio_prompt
@@ -220,15 +234,10 @@ class QueueManager:
                 if 'spk_audio_prompt' in infer_params:
                     infer_params['audio_prompt'] = infer_params.pop('spk_audio_prompt')
                 
-                # 调用 infer 方法
-                # 注意: IndexTTS wrapper 为了适配 GUI 增加了一些逻辑，我们可以直接调用 infer
-                # 但 wrapper 的 infer_generator 做了异常处理和参数清洗，也许可以直接复用逻辑
-                # 但这里是同步调用，直接调 infer
-                
                 # 过滤不必要的参数
                 valid_keys = ['text', 'audio_prompt', 'output_path', 'verbose', 'max_text_tokens_per_segment']
-                # 同时也允许 generation_kwargs
                 call_kwargs = {k: v for k, v in infer_params.items() if k in valid_keys}
+                
                 # 将其他参数放入 generation_kwargs
                 extra_kwargs = {k: v for k, v in infer_params.items() if k not in valid_keys and k in [
                     'top_k', 'top_p', 'temperature', 'do_sample', 'length_penalty', 'repetition_penalty', 'num_beams', 'max_mel_tokens'
@@ -236,11 +245,9 @@ class QueueManager:
                 call_kwargs.update(extra_kwargs)
                 
                 output_path = model.infer(**call_kwargs)
-                return output_path
 
             elif version == "V2.0":
                 # V2.0 Inference: infer(spk_audio_prompt, text, output_path, ...)
-                # 参数透严
                 valid_keys = [
                     'spk_audio_prompt', 'text', 'output_path', 
                     'emo_audio_prompt', 'emo_alpha', 'emo_vector', 
@@ -260,10 +267,14 @@ class QueueManager:
                 else:
                     raise RuntimeError(f"Model {version} has no 'infer' method")
                 
-                return params['output_path']
-                
+                output_path = params['output_path']
             else:
                 raise ValueError(f"Unsupported version: {version}")
+            
+            # 生成字幕 (如果需要)
+            subtitle_path = self._generate_subtitle_if_needed(params, output_path)
+            
+            return output_path, subtitle_path
 
         except Exception as e:
             logger.error(f"Inference failed: {e}", exc_info=True)
@@ -398,12 +409,62 @@ class QueueManager:
         if not self.current_loaded_version:
             return
         
-        # 等待一小段时间，确保没有新任务进来
+        # 等待一小段时间,确保没有新任务进来
         await asyncio.sleep(1)
         
         # 再次检查队列是否仍然为空
         if self.queue.empty():
-            logger.info(f"Queue is idle, releasing model: {self.current_loaded_version}")
+            logger.info(f"Queue is idle, releasing models...")
+            
+            # 释放 TTS 模型
             self._unload_model(self.current_loaded_version)
             self.current_loaded_version = None
+            
+            # 释放 Whisper 模型
+            try:
+                from app.core.subtitle.whisper_manager import WhisperManager
+                whisper_manager = WhisperManager()
+                if whisper_manager.model is not None:
+                    logger.info("Releasing Whisper model...")
+                    whisper_manager.release_resources()
+            except Exception as e:
+                logger.error(f"Error releasing Whisper model: {e}")
+    
+    def _generate_subtitle_if_needed(self, params: Dict[str, Any], audio_path: str) -> Optional[str]:
+        """
+        根据参数决定是否生成字幕
+        
+        Args:
+            params: 请求参数
+            audio_path: 音频文件路径
+            
+        Returns:
+            字幕文件路径,如果不需要生成则返回 None
+        """
+        # 检查是否需要生成字幕
+        if not params.get('generate_subtitle', False):
+            return None
+        
+        try:
+            logger.info("Generating subtitle...")
+            from app.core.subtitle.subtitle_generator import SubtitleGenerator
+            
+            # 生成字幕文件路径
+            subtitle_path = audio_path.replace('.wav', '.srt')
+            
+            # 创建字幕生成器并生成字幕
+            subtitle_generator = SubtitleGenerator()
+            subtitle_generator.generate(
+                audio_path=audio_path,
+                original_text=params['text'],
+                output_srt_path=subtitle_path
+            )
+            
+            logger.info(f"Subtitle generated: {subtitle_path}")
+            return subtitle_path
+            
+        except Exception as e:
+            logger.error(f"Subtitle generation failed: {e}", exc_info=True)
+            # 字幕生成失败不影响主流程,返回 None
+            return None
 

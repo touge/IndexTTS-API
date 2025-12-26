@@ -65,6 +65,7 @@ class TaskStatusResponse(BaseResponse):
         created_timestamp: float = 0.0        # 原始时间戳（用于程序处理）
         download_url: Optional[str] = None    # 流式下载链接（推荐，仅 completed 状态）
         file_url: Optional[str] = None        # 静态文件链接（备用，仅 completed 状态）
+        subtitle_url: Optional[str] = None    # 字幕文件下载链接（仅 completed 状态且生成了字幕）
     
     details: Details
 
@@ -100,6 +101,9 @@ class TTSRequestV1_5(BaseModel):
     
     max_mel_tokens: int = 600      # 最大生成的 Mel 帧数，直接控制生成音频的最大长度
     verbose: bool = False          # 是否在服务端控制台打印详细的推理日志
+    
+    # --- 字幕生成控制 ---
+    generate_subtitle: bool = Field(False, description="是否生成字幕文件 (SRT 格式)")
 
 class TTSRequestV2_0(BaseModel):
     """
@@ -151,3 +155,6 @@ class TTSRequestV2_0(BaseModel):
     max_mel_tokens: int = 1500     # V2.0 模型通常支持生成更长的序列 (默认: 1500)
     
     verbose: bool = False          # 是否打印详细日志
+    
+    # --- 字幕生成控制 ---
+    generate_subtitle: bool = Field(False, description="是否生成字幕文件 (SRT 格式)")

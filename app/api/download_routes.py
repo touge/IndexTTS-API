@@ -191,3 +191,102 @@ async def get_task_file(
         media_type="audio/wav",
         filename=filename
     )
+
+
+@router.get("/download/subtitle/{task_id}", tags=["Download"])
+async def download_subtitle(
+    task_id: str,
+    qm: QueueManager = Depends(get_queue_manager),
+    token: str = Depends(verify_token)
+):
+    """
+    下载任务生成的字幕文件 (SRT 格式)
+    
+    此端点返回字幕文件流。只有在生成音频时启用了字幕生成功能,
+    才会有字幕文件可供下载。
+    
+    ## 特点
+    - ✅ 直接返回字幕文件流
+    - ✅ SRT 格式,兼容大多数视频播放器
+    - ✅ 下载后可自动删除（根据配置）
+    
+    ## 使用示例
+    
+    **Python**:
+    ```python
+    import requests
+    
+    headers = {"Authorization": "Bearer your-token"}
+    
+    response = requests.get(
+        f"http://localhost:8000/download/subtitle/{task_id}",
+        headers=headers
+    )
+    
+    with open("subtitle.srt", "wb") as f:
+        f.write(response.content)
+    ```
+    
+    **cURL**:
+    ```bash
+    curl -X GET "http://localhost:8000/download/subtitle/{task_id}" \
+      -H "Authorization: Bearer your-token" \
+      -o subtitle.srt
+    ```
+    
+    ## 认证
+    需要 Bearer Token 认证（如果在 config.yaml 中配置了 token）
+    
+    ## 返回
+    - 200: 返回字幕文件流（text/plain）
+    - 404: 任务不存在、未完成或未生成字幕
+    - 410: 文件已被删除
+    """
+    # 获取任务状态
+    status = qm.get_task_status(task_id)
+    if not status:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    if status["status"] != "completed":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Task not completed yet. Current status: {status['status']}"
+        )
+    
+    # 获取字幕文件路径
+    task = qm.tasks.get(task_id)
+    subtitle_path = task.subtitle_path if task else None
+    
+    if not subtitle_path:
+        raise HTTPException(
+            status_code=404,
+            detail="Subtitle file not found. The task may not have enabled subtitle generation."
+        )
+    
+    if not os.path.exists(subtitle_path):
+        raise HTTPException(status_code=410, detail="Subtitle file has been deleted")
+    
+    # 获取配置
+    delete_after = yaml_config_loader.get('api.output.delete_after_stream', True)
+    
+    # 返回文件流
+    def iterfile():
+        with open(subtitle_path, mode="rb") as file_like:
+            yield from file_like
+        
+        # 下载后删除文件（如果配置启用）
+        if delete_after:
+            try:
+                os.remove(subtitle_path)
+                logger.info(f"Subtitle file deleted after download: {subtitle_path}")
+            except Exception as e:
+                logger.warning(f"Failed to delete subtitle file after download: {e}")
+    
+    filename = os.path.basename(subtitle_path)
+    return StreamingResponse(
+        iterfile(),
+        media_type="text/plain",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        }
+    )

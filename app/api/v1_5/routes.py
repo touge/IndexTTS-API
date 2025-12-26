@@ -48,7 +48,9 @@ async def generate_v1_5(
         
         "do_sample": true,  // 可选，是否采样，默认true
         "num_beams": 3,  // 可选，Beam Search，默认3
-        "verbose": false  // 可选，详细日志，默认false
+        "verbose": false,  // 可选，详细日志，默认false
+        
+        "generate_subtitle": true  // 可选，是否生成字幕文件，默认false
     }
     ```
     
@@ -66,6 +68,7 @@ async def generate_v1_5(
     - **do_sample** (默认true): 是否启用采样
     - **num_beams** (默认3): Beam Search 束宽
     - **verbose** (默认false): 是否打印详细日志
+    - **generate_subtitle** (默认false): 是否生成字幕文件 (SRT 格式)
     
     ## 认证
     需要 Bearer Token 认证（如果在 config.yaml 中配置了 token）

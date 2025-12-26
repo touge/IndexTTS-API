@@ -1,7 +1,7 @@
 # 服务器配置
 server:
   host: 0.0.0.0
-  port: 8000
+  port: 8001
   reload: false
 
 # API 配置
@@ -44,9 +44,24 @@ tts:
       model_dir: "IndexTTS-1.5"
       config_file: "config.yaml"
       
-    "V2.0":
+    \"V2.0\":
       module: "app.core.indextts.infer_v2"
       class_name: "IndexTTS2"
       # 模型目录
       model_dir: "IndexTTS-2"
       config_file: "config.yaml"
+  
+  # 字幕生成配置
+  subtitle:
+    # 是否启用字幕生成功能（默认关闭，用户通过 API 参数 generate_subtitle 控制）
+    enabled: false
+    # Whisper 模型路径（相对于 models_root）
+    whisper_model: "whisper/faster-whisper-large-v2"
+    # Whisper 推理配置
+    whisper_config:
+      beam_size: 5              # Beam search 大小，影响转录准确性
+      word_timestamps: true     # 启用词级时间戳（必须为 true）
+    # 文本对齐配置
+    alignment:
+      match_threshold: 75       # 模糊匹配阈值 (0-100)，低于此值的匹配将被忽略
+      search_window_multiplier: 3  # 搜索窗口大小倍数（窗口大小 = 文本长度 × 倍数 + 20）
