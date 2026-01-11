@@ -44,7 +44,7 @@ tts:
       model_dir: "IndexTTS-1.5"
       config_file: "config.yaml"
       
-    \"V2.0\":
+    "V2.0":
       module: "app.core.indextts.infer_v2"
       class_name: "IndexTTS2"
       # 模型目录
