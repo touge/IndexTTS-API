@@ -19,7 +19,7 @@ router = APIRouter()
 ALLOWED_AUDIO_EXTENSIONS = {'.wav', '.mp3', '.flac', '.ogg', '.m4a'}
 
 # 允许的文本文件扩展名
-ALLOWED_TEXT_EXTENSIONS = {'.txt'}
+ALLOWED_TEXT_EXTENSIONS = {'.txt', '.md'}
 
 # 最大文件大小
 MAX_AUDIO_SIZE = 300 * 1024 * 1024  # 300MB
