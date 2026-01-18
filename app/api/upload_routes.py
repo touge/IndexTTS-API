@@ -15,8 +15,8 @@ router = APIRouter()
 # 允许的音频文件扩展名
 ALLOWED_EXTENSIONS = {'.wav', '.mp3', '.flac', '.ogg', '.m4a'}
 
-# 最大文件大小（50MB）
-MAX_FILE_SIZE = 50 * 1024 * 1024
+# 最大文件大小（300MB）
+MAX_FILE_SIZE = 300 * 1024 * 1024
 
 @router.post("/upload/audio", tags=["Upload"])
 async def upload_audio(

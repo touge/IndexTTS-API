@@ -15,27 +15,48 @@ class TaskStatus(Enum):
     COMPLETED = "completed"
     FAILED = "failed"
 
+class TaskType(Enum):
+    """任务类型枚举"""
+    TTS = "tts"              # TTS 生成任务
+    SUBTITLE = "subtitle"    # 字幕生成任务
+
+class TTSEngine(Enum):
+    """
+TTS 引擎类型枚举
+    
+    支持多种 TTS 引擎，每个引擎可能有不同的版本管理方式
+    """
+    INDEXTTS = "indextts"    # IndexTTS 引擎（支持 V1.5, V2.0 版本）
+    COSYVOICE = "cosyvoice"  # CosyVoice 引擎（可能无版本区分）
+    # 未来可以添加更多引擎...
+
 @dataclass
-class TTSRequest:
+class TaskRequest:
+    """统一的任务请求数据类"""
     task_id: str
-    version: str  # "V1.5" or "V2.0"
-    params: Dict[str, Any]
+    task_type: TaskType                         # 任务类型：TTS 或 SUBTITLE
+    
+    # TTS 任务相关字段（仅 task_type=TTS 时有效）
+    tts_engine: Optional[TTSEngine] = None      # TTS 引擎类型（indextts, cosyvoice 等）
+    engine_version: Optional[str] = None        # 引擎版本（可选，如 indextts 的 "V1.5"/"V2.0"）
+    
+    params: Dict[str, Any] = field(default_factory=dict)
     status: TaskStatus = TaskStatus.PENDING
-    result: Optional[str] = None
-    subtitle_path: Optional[str] = None  # 字幕文件路径
+    result: Optional[str] = None                # 音频文件路径（TTS 任务）
+    subtitle_path: Optional[str] = None         # 字幕文件路径
     error: Optional[str] = None
     created_at: float = field(default_factory=time.time)
 
 class QueueManager:
     def __init__(self):
         # 使用 asyncio.Queue 对协程友好，但在 Worker 线程中实际上我们可能需要一个线程安全的队列
-        # 或者我们简单地使用 ThreadPoolExecutor 来运行阻塞的 TTS 任务
+        # 或者我们简单地使用 ThreadPoolExecutor 来运行阻塞的任务
         self.queue = asyncio.Queue()
-        self.tasks: Dict[str, TTSRequest] = {}
+        self.tasks: Dict[str, TaskRequest] = {}
         self.worker_task = None
-        self.executor = ThreadPoolExecutor(max_workers=1) # TTS 生成通常是显存密集型，限制为 1 个并发
-        self.models = {} # 缓存模型实例
-        self.current_loaded_version = None  # 当前加载的模型版本
+        self.executor = ThreadPoolExecutor(max_workers=1) # 生成任务通常是显存密集型，限制为 1 个并发
+        self.models = {} # 缓存 TTS 模型实例
+        self.current_loaded_version = None  # 当前加载的 TTS 模型版本
         
     async def start(self):
         """启动队列处理循环"""
@@ -53,11 +74,65 @@ class QueueManager:
         self.executor.shutdown(wait=True)
         logger.info("TTS Queue Manager stopped.")
 
-    async def submit_task(self, version: str, params: Dict[str, Any]) -> str:
-        """提交一个新的 TTS 任务"""
+    async def submit_task(
+        self, 
+        task_type: TaskType, 
+        params: Dict[str, Any],
+        **task_options
+    ) -> str:
+        """
+        提交一个新任务
+        
+        Args:
+            task_type: 任务类型（TTS 或 SUBTITLE）
+            params: 任务参数
+            **task_options: 任务选项（根据任务类型不同）
+                TTS 任务:
+                    - tts_engine: TTSEngine - TTS 引擎类型（必填）
+                    - engine_version: str - 引擎版本（可选）
+                SUBTITLE 任务:
+                    - 无额外选项
+        
+        Returns:
+            task_id: 任务 ID
+            
+        Raises:
+            ValueError: 如果 TTS 任务未提供 tts_engine
+            
+        Examples:
+            # TTS 任务 (IndexTTS)
+            await qm.submit_task(
+                task_type=TaskType.TTS,
+                params={...},
+                tts_engine=TTSEngine.INDEXTTS,
+                engine_version="V1.5"
+            )
+            
+            # TTS 任务 (CosyVoice, 无版本)
+            await qm.submit_task(
+                task_type=TaskType.TTS,
+                params={...},
+                tts_engine=TTSEngine.COSYVOICE
+            )
+            
+            # 字幕任务
+            await qm.submit_task(
+                task_type=TaskType.SUBTITLE,
+                params={...}
+            )
+        """
+        # 提取任务选项
+        tts_engine = task_options.get('tts_engine')
+        engine_version = task_options.get('engine_version')
+        
+        # 验证参数
+        if task_type == TaskType.TTS and not tts_engine:
+            raise ValueError("TTS task requires 'tts_engine' parameter")
+        
+        # 生成任务 ID
         task_id = str(uuid.uuid4())
         
-        # 强制设置输出路径到 tasks 目录（忽略用户提供的 output_path）
+        # 强制设置输出路径到 tasks 目录
         from app.utils.yaml_config_loader import yaml_config_loader
         import os
         
@@ -65,13 +140,52 @@ class QueueManager:
         task_output_dir = os.path.join(tasks_dir, task_id)
         os.makedirs(task_output_dir, exist_ok=True)
         
-        params['output_path'] = os.path.join(task_output_dir, f"{task_id}.wav")
+        # 根据任务类型设置输出路径
+        if task_type == TaskType.SUBTITLE:
+            # 字幕生成任务：输出 .srt 文件
+            output_filename = params.get('output_filename', 'subtitle.srt')
+            params['output_path'] = os.path.join(task_output_dir, output_filename)
+            
+            # 如果有音频内容，保存到任务目录
+            if 'audio_content' in params:
+                audio_ext = params.get('audio_ext', '.wav')
+                audio_path = os.path.join(task_output_dir, f"uploaded_audio{audio_ext}")
+                with open(audio_path, "wb") as f:
+                    f.write(params['audio_content'])
+                # 替换参数：从 audio_content 改为 audio_path
+                params['audio_path'] = audio_path
+                del params['audio_content']
+                del params['audio_ext']
+                logger.info(f"Audio file saved to task directory: {audio_path}")
+        elif task_type == TaskType.TTS:
+            # TTS 任务：输出 .wav 文件
+            params['output_path'] = os.path.join(task_output_dir, f"{task_id}.wav")
+        else:
+            raise ValueError(f"Unsupported task type: {task_type}")
+        
         logger.info(f"Output path set to: {params['output_path']}")
         
-        request = TTSRequest(task_id=task_id, version=version, params=params)
+        # 创建任务请求
+        request = TaskRequest(
+            task_id=task_id,
+            task_type=task_type,
+            tts_engine=tts_engine,
+            engine_version=engine_version,
+            params=params
+        )
+        
         self.tasks[task_id] = request
         await self.queue.put(request)
-        logger.info(f"Task submitted: {task_id} (Version: {version})")
+        
+        # 构建日志消息
+        log_msg = f"Task submitted: {task_id} (Type: {task_type.value}"
+        if tts_engine:
+            log_msg += f", Engine: {tts_engine.value}"
+            if engine_version:
+                log_msg += f", Version: {engine_version}"
+        log_msg += ")"
+        logger.info(log_msg)
+        
         return task_id
 
     def get_task_status(self, task_id: str) -> Optional[Dict[str, Any]]:
@@ -167,17 +281,32 @@ class QueueManager:
                 request.status = TaskStatus.PROCESSING
                 logger.info(f"Processing task: {request.task_id}")
 
-                # 在线程池中运行阻塞的 TTS 生成
+                # 在线程池中运行阻塞的任务
                 loop = asyncio.get_event_loop()
                 try:
-                    audio_path, subtitle_path = await loop.run_in_executor(
-                        self.executor, 
-                        self._run_inference, 
-                        request.version, 
-                        request.params
-                    )
-                    request.result = audio_path
-                    request.subtitle_path = subtitle_path
+                    if request.task_type == TaskType.SUBTITLE:
+                        # 字幕生成任务
+                        subtitle_path = await loop.run_in_executor(
+                            self.executor,
+                            self._run_subtitle_generation,
+                            request.params
+                        )
+                        request.result = None  # 字幕任务没有音频输出
+                        request.subtitle_path = subtitle_path
+                    elif request.task_type == TaskType.TTS:
+                        # TTS 生成任务
+                        audio_path, subtitle_path = await loop.run_in_executor(
+                            self.executor, 
+                            self._run_tts_inference, 
+                            request.tts_engine,
+                            request.engine_version,
+                            request.params
+                        )
+                        request.result = audio_path
+                        request.subtitle_path = subtitle_path
+                    else:
+                        raise ValueError(f"Unknown task type: {request.task_type}")
+                    
                     request.status = TaskStatus.COMPLETED
                     logger.info(f"Task completed: {request.task_id}")
                 except Exception as e:
@@ -196,13 +325,48 @@ class QueueManager:
                 logger.error(f"Error in queue processor: {e}", exc_info=True)
                 await asyncio.sleep(1) # 防止死循环
 
-    def _run_inference(self, version: str, params: Dict[str, Any]) -> tuple[str, Optional[str]]:
+    def _run_tts_inference(
+        self, 
+        tts_engine: TTSEngine,
+        engine_version: Optional[str],
+        params: Dict[str, Any]
+    ) -> tuple[str, Optional[str]]:
         """
-        实际执行推理 (运行在线程池中)
+        实际执行 TTS 推理 (运行在线程池中)
+        
+        Args:
+            tts_engine: TTS 引擎类型
+            engine_version: 引擎版本（可选）
+            params: 推理参数
         
         Returns:
             (audio_path, subtitle_path): 音频文件路径和字幕文件路径(可选)
         """
+        # 根据引擎类型路由到不同的处理逻辑
+        if tts_engine == TTSEngine.INDEXTTS:
+            return self._run_indextts_inference(engine_version, params)
+        elif tts_engine == TTSEngine.COSYVOICE:
+            return self._run_cosyvoice_inference(params)
+        else:
+            raise ValueError(f"Unsupported TTS engine: {tts_engine}")
+    
+    def _run_indextts_inference(
+        self,
+        version: Optional[str],
+        params: Dict[str, Any]
+    ) -> tuple[str, Optional[str]]:
+        """
+        执行 IndexTTS 推理
+        
+        Args:
+            version: IndexTTS 版本 ("V1.5" 或 "V2.0")
+            params: 推理参数
+        
+        Returns:
+            (audio_path, subtitle_path): 音频文件路径和字幕文件路径(可选)
+        """
+        if not version:
+            raise ValueError("IndexTTS engine requires 'engine_version' parameter (V1.5 or V2.0)")
         # 智能模型管理:如果模型版本切换,先卸载旧模型
         if self.current_loaded_version and self.current_loaded_version != version:
             logger.info(f"Model switch detected: {self.current_loaded_version} -> {version}")
@@ -277,8 +441,21 @@ class QueueManager:
             return output_path, subtitle_path
 
         except Exception as e:
-            logger.error(f"Inference failed: {e}", exc_info=True)
+            logger.error(f"IndexTTS inference failed: {e}", exc_info=True)
             raise e
+    
+    def _run_cosyvoice_inference(self, params: Dict[str, Any]) -> tuple[str, Optional[str]]:
+        """
+        执行 CosyVoice 推理
+        
+        Args:
+            params: 推理参数
+        
+        Returns:
+            (audio_path, subtitle_path): 音频文件路径和字幕文件路径(可选)
+        """
+        # TODO: 实现 CosyVoice 推理逻辑
+        raise NotImplementedError("CosyVoice engine is not yet implemented")
 
     def _load_model(self, version: str):
         """加载模型实例"""
@@ -467,4 +644,43 @@ class QueueManager:
             logger.error(f"Subtitle generation failed: {e}", exc_info=True)
             # 字幕生成失败不影响主流程,返回 None
             return None
+    
+    def _run_subtitle_generation(self, params: Dict[str, Any]) -> str:
+        """
+        执行字幕生成任务 (运行在线程池中)
+        
+        Args:
+            params: 任务参数
+                - audio_path: 音频文件路径
+                - text: 文本内容
+                - output_path: 输出字幕文件路径
+        
+        Returns:
+            subtitle_path: 生成的字幕文件路径
+        """
+        try:
+            logger.info("Starting subtitle generation task...")
+            from app.core.subtitle.subtitle_generator import SubtitleGenerator
+            
+            audio_path = params['audio_path']
+            text = params['text']
+            output_path = params['output_path']
+            
+            # 创建字幕生成器并生成字幕
+            subtitle_generator = SubtitleGenerator()
+            subtitle_path = subtitle_generator.generate(
+                audio_path=audio_path,
+                original_text=text,
+                output_srt_path=output_path
+            )
+            
+            logger.info(f"Subtitle generation completed: {subtitle_path}")
+            
+            # 注意：音频文件保存在任务目录中，会随任务目录一起被清理，无需手动删除
+            
+            return subtitle_path
+            
+        except Exception as e:
+            logger.error(f"Subtitle generation task failed: {e}", exc_info=True)
+            raise e
 

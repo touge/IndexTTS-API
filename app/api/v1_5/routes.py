@@ -1,8 +1,10 @@
 import logging
 from fastapi import APIRouter, HTTPException, Depends
 from app.api.schemas import TTSRequestV1_5, TaskSubmitResponse, TaskStatusResponse
-from app.core.queue_manager import QueueManager
+from app.core.queue_manager import QueueManager, TaskType, TTSEngine
 from app.core.security import verify_token
+
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -84,7 +86,7 @@ async def generate_v1_5(
         logger.info(f"V1.5 Request payload: {params}")
         
         # 检查音频文件是否存在
-        from pathlib import Path
+        # from pathlib import Path
         required_files = [params.get('spk_audio_prompt')]
         missing_files = []
         
@@ -104,7 +106,12 @@ async def generate_v1_5(
                 }
             )
         
-        task_id = await qm.submit_task(version="V1.5", params=params)
+        task_id = await qm.submit_task(
+            task_type=TaskType.TTS,
+            tts_engine=TTSEngine.INDEXTTS,
+            engine_version="V1.5",
+            params=params
+        )
         return TaskSubmitResponse(task_id=task_id)
     except HTTPException:
         raise

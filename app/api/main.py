@@ -7,6 +7,7 @@ from app.api.v2_0 import routes as v2_0_routes
 from app.api import common_routes
 from app.api import download_routes
 from app.api import upload_routes
+from app.api import subtitle_routes
 from app.core.security import verify_token
 
 # 配置日志
@@ -45,11 +46,13 @@ app.dependency_overrides[v1_5_routes.get_queue_manager] = get_queue_manager_over
 app.dependency_overrides[v2_0_routes.get_queue_manager] = get_queue_manager_override
 app.dependency_overrides[common_routes.get_queue_manager] = get_queue_manager_override
 app.dependency_overrides[download_routes.get_queue_manager] = get_queue_manager_override
+app.dependency_overrides[subtitle_routes.get_queue_manager] = get_queue_manager_override
 
 # 注册路由
 app.include_router(common_routes.router) # 挂载在根路径，即 /status/{task_id}
 app.include_router(download_routes.router) # 下载路由，/download/{task_id} 和 /files/{task_id}
 app.include_router(upload_routes.router) # 上传路由，/upload/audio
+app.include_router(subtitle_routes.router, prefix="/subtitle", tags=["Subtitle"]) # 字幕生成路由
 app.include_router(v1_5_routes.router, prefix="/v1.5", tags=["V1.5"])
 app.include_router(v2_0_routes.router, prefix="/v2.0", tags=["V2.0"])
 
@@ -67,6 +70,7 @@ async def root(token: str = Depends(verify_token)):
         "endpoints": {
             "v1.5": "/v1.5/generate",
             "v2.0": ["/v2.0/generate", "/v2.0/emo_mode/generate"],
+            "subtitle": "/subtitle/generate",
             "status": "/status/{task_id}",
             "docs": "/docs"
         }

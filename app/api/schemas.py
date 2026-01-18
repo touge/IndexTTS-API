@@ -158,3 +158,14 @@ class TTSRequestV2_0(BaseModel):
     
     # --- 字幕生成控制 ---
     generate_subtitle: bool = Field(False, description="是否生成字幕文件 (SRT 格式)")
+
+# ==========================================
+# 字幕生成相关模型
+# ==========================================
+
+class SubtitleGenerationResponse(BaseResponse):
+    """
+    字幕生成任务提交响应
+    返回任务 ID 供客户端查询进度
+    """
+    task_id: str  # 任务 ID

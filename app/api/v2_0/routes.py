@@ -1,7 +1,7 @@
 import logging
 from fastapi import APIRouter, HTTPException, Depends
 from app.api.schemas import TTSRequestV2_0, TaskSubmitResponse, TaskStatusResponse
-from app.core.queue_manager import QueueManager
+from app.core.queue_manager import QueueManager, TaskType, TTSEngine
 from app.core.security import verify_token
 
 logger = logging.getLogger(__name__)
@@ -142,7 +142,13 @@ async def generate_v2_0(
         else:
             logger.info("Using speaker's original emotion (no additional control)")
         
-        task_id = await qm.submit_task(version="V2.0", params=params)
+        
+        task_id = await qm.submit_task(
+            task_type=TaskType.TTS,
+            tts_engine=TTSEngine.INDEXTTS,
+            engine_version="V2.0",
+            params=params
+        )
         return TaskSubmitResponse(task_id=task_id)
     except Exception as e:
         logger.error(f"Failed to submit V2.0 task: {e}", exc_info=True)
@@ -330,7 +336,13 @@ async def generate_v2_0_with_emo_mode(
         # 移除 emotion_mode 参数（底层模型不需要）
         params.pop('emotion_mode', None)
         
-        task_id = await qm.submit_task(version="V2.0", params=params)
+        
+        task_id = await qm.submit_task(
+            task_type=TaskType.TTS,
+            tts_engine=TTSEngine.INDEXTTS,
+            engine_version="V2.0",
+            params=params
+        )
         return TaskSubmitResponse(task_id=task_id)
     except HTTPException:
         raise
