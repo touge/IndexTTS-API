@@ -11,19 +11,17 @@ from typing import Optional
 from app.api.schemas import SubtitleGenerationResponse
 from app.core.queue_manager import QueueManager, TaskType
 from app.core.security import verify_token
+from app.utils.yaml_config_loader import yaml_config_loader
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# 允许的音频文件扩展名
-ALLOWED_AUDIO_EXTENSIONS = {'.wav', '.mp3', '.flac', '.ogg', '.m4a'}
-
-# 允许的文本文件扩展名
-ALLOWED_TEXT_EXTENSIONS = {'.txt', '.md'}
-
-# 最大文件大小
-MAX_AUDIO_SIZE = 300 * 1024 * 1024  # 300MB
-MAX_TEXT_SIZE = 5 * 1024 * 1024     # 5MB
+# 从配置文件读取文件上传限制
+upload_config = yaml_config_loader.get('api.upload', {})
+ALLOWED_AUDIO_EXTENSIONS = set(upload_config.get('allowed_audio_extensions', ['.wav', '.mp3', '.flac', '.ogg', '.m4a']))
+ALLOWED_TEXT_EXTENSIONS = set(upload_config.get('allowed_text_extensions', ['.txt', '.md']))
+MAX_AUDIO_SIZE = upload_config.get('max_subtitle_audio_size', 1024) * 1024 * 1024  # MB 转 字节
+MAX_TEXT_SIZE = upload_config.get('max_text_size', 50) * 1024 * 1024  # MB 转 字节
 
 # 获取 QueueManager 实例的依赖项
 def get_queue_manager():
@@ -159,7 +157,7 @@ async def generate_subtitle(
                 status_code=400,
                 detail={
                     "error": "audio_file_too_large",
-                    "message": f"音频文件过大。最大限制: {MAX_AUDIO_SIZE / 1024 / 1024}MB"
+                    "message": f"音频文件过大。最大限制: {upload_config.get('max_subtitle_audio_size', 1024)}MB"
                 }
             )
         
@@ -184,7 +182,7 @@ async def generate_subtitle(
                     status_code=400,
                     detail={
                         "error": "text_file_too_large",
-                        "message": f"文本文件过大。最大限制: {MAX_TEXT_SIZE / 1024 / 1024}MB"
+                        "message": f"文本文件过大。最大限制: {upload_config.get('max_text_size', 50)}MB"
                     }
                 )
             

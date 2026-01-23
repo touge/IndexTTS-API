@@ -1,67 +1,85 @@
-﻿# 鏈嶅姟鍣ㄩ厤缃?
+﻿# 服务器配置
 server:
   host: 0.0.0.0
   port: 10001
   reload: false
 
-# API 閰嶇疆
+# API 配置
 api:
-  # Bearer Token 璁よ瘉
-  # 鐣欑┖鍒欑鐢ㄨ璇侊紙寮€鍙戞ā寮忥級
-  # 鐢熶骇鐜璇疯缃己瀵嗙爜 token
+  # Bearer Token 认证
+  # 留空则禁用认证（开发模式）
+  # 生产环境请设置强密码 token
   token: "123456"
   
-  # 杈撳嚭鏂囦欢閰嶇疆
+  # 输出文件配置
   output:
-    # 浠诲姟杈撳嚭鐩綍锛堟瘡涓换鍔′竴涓瓙鐩綍锛?
+    # 任务输出目录（每个任务一个子目录）
     tasks_dir: "tasks"
-    # 鏂囦欢淇濈暀鏃堕棿锛堝皬鏃讹級锛岃秴杩囨鏃堕棿鐨勬枃浠朵細琚嚜鍔ㄦ竻鐞?
+    # 文件保留时间（小时），超过此时间的文件会被自动清理
     retention_hours: 8
-    # 娴佸紡涓嬭浇鍚庢槸鍚﹀垹闄ゆ枃浠讹紙鎺ㄨ崘 true锛?
+    # 流式下载后是否删除文件（推荐 true）
     delete_after_stream: true
+  
+  # 文件上传配置
+  upload:
+    # 文件大小限制（单位：MB）
+    max_subtitle_audio_size: 1024  # 字幕生成音频文件大小限制 (1GB)
+    max_reference_audio_size: 300  # 参考音频/情感音频文件大小限制 (300MB)
+    max_text_size: 50              # 文本文档大小限制 (50MB)
+    
+    # 允许的文件扩展名
+    allowed_audio_extensions:
+      - .wav
+      - .mp3
+      - .flac
+      - .ogg
+      - .m4a
+    allowed_text_extensions:
+      - .txt
+      - .md
 
-# TTS妯″瀷閰嶇疆
+# TTS模型配置
 tts:
-  # 璺緞閰嶇疆
-  # 璺緞閰嶇疆
+  # 路径配置
+  # 路径配置
   paths:
-    # 妯″瀷鏍圭洰褰?(瀛樻斁鎵€鏈夋ā鍨嬫枃浠剁殑鍩虹鐩綍)
+    # 模型根目录(存放所有模型文件的基础目录)
     models_root: "models"
   
-  # 妯″瀷榛樿閰嶇疆 (杩愯鏃?
+  # 模型默认配置 (运行时)
   model:
     runtime_settings:
-      use_cuda_kernel: false # 鏄惁浣跨敤 CUDA Kernel
-      use_deepspeed: false   # 鏄惁浣跨敤 Deepspeed
-      unload_after_gen: true # 鐢熸垚瀹屾瘯鍚庢槸鍚﹂噴鏀炬樉瀛?(鑺傜渷璧勬簮浣嗗鍔犱笅娆＄敓鎴愮瓑寰呮椂闂?
+      use_cuda_kernel: false # 是否使用 CUDA Kernel
+      use_deepspeed: false   # 是否使用 Deepspeed
+      unload_after_gen: true # 生成完毕后是否释放显存(节省资源但增加下次生成等待时间)
 
-  # 澶氱増鏈ā鍨嬮厤缃?
+  # 多版本模型配置
   versions:
     "V1.5":
       module: "app.core.indextts.infer"
       class_name: "IndexTTS"
-      # 妯″瀷鐩綍 (鐢ㄦ埛闇€鏍规嵁瀹為檯鎯呭喌淇敼)
+      # 模型目录 (用户需根据实际情况修改)
       model_dir: "IndexTTS-1.5"
       config_file: "config.yaml"
       
     "V2.0":
       module: "app.core.indextts.infer_v2"
       class_name: "IndexTTS2"
-      # 妯″瀷鐩綍
+      # 模型目录
       model_dir: "IndexTTS-2"
       config_file: "config.yaml"
   
-  # 瀛楀箷鐢熸垚閰嶇疆
+  # 字幕生成配置
   subtitle:
-    # 鏄惁鍚敤瀛楀箷鐢熸垚鍔熻兘锛堥粯璁ゅ叧闂紝鐢ㄦ埛閫氳繃 API 鍙傛暟 generate_subtitle 鎺у埗锛?
+    # 是否启用字幕生成功能（默认关闭，用户通过 API 参数 generate_subtitle 控制）
     enabled: false
-    # Whisper 妯″瀷璺緞锛堢浉瀵逛簬 models_root锛?
+    # Whisper 模型路径（相对于 models_root）
     whisper_model: "whisper/faster-whisper-large-v2"
-    # Whisper 鎺ㄧ悊閰嶇疆
+    # Whisper 推理配置
     whisper_config:
-      beam_size: 5              # Beam search 澶у皬锛屽奖鍝嶈浆褰曞噯纭€?
-      word_timestamps: true     # 鍚敤璇嶇骇鏃堕棿鎴筹紙蹇呴』涓?true锛?
-    # 鏂囨湰瀵归綈閰嶇疆
+      beam_size: 5              # Beam search 大小，影响转录准确性
+      word_timestamps: true     # 启用词级时间戳（必须为 true）
+    # 文本对齐配置
     alignment:
-      match_threshold: 75       # 妯＄硦鍖归厤闃堝€?(0-100)锛屼綆浜庢鍊肩殑鍖归厤灏嗚蹇界暐
-      search_window_multiplier: 3  # 鎼滅储绐楀彛澶у皬鍊嶆暟锛堢獥鍙ｅぇ灏?= 鏂囨湰闀垮害 脳 鍊嶆暟 + 20锛?
+      match_threshold: 75       # 模糊匹配阈值(0-100)，低于此值的匹配将被忽略
+      search_window_multiplier: 3  # 搜索窗口大小倍数（窗口大小 = 文本长度 × 倍数 + 20）

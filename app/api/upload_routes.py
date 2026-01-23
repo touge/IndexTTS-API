@@ -8,15 +8,15 @@ import os
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends
 from app.core.security import verify_token
+from app.utils.yaml_config_loader import yaml_config_loader
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# 允许的音频文件扩展名
-ALLOWED_EXTENSIONS = {'.wav', '.mp3', '.flac', '.ogg', '.m4a'}
-
-# 最大文件大小（300MB）
-MAX_FILE_SIZE = 300 * 1024 * 1024
+# 从配置文件读取文件上传限制
+upload_config = yaml_config_loader.get('api.upload', {})
+ALLOWED_EXTENSIONS = set(upload_config.get('allowed_audio_extensions', ['.wav', '.mp3', '.flac', '.ogg', '.m4a']))
+MAX_FILE_SIZE = upload_config.get('max_reference_audio_size', 300) * 1024 * 1024  # MB 转 字节
 
 @router.post("/upload/audio", tags=["Upload"])
 async def upload_audio(
@@ -135,7 +135,7 @@ async def upload_audio(
                 status_code=400,
                 detail={
                     "success": False,
-                    "error": f"File too large. Maximum size: {MAX_FILE_SIZE / 1024 / 1024}MB"
+                    "error": f"文件过大。最大限制: {upload_config.get('max_reference_audio_size', 300)}MB"
                 }
             )
         
