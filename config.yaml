@@ -1,7 +1,7 @@
 ﻿# 鏈嶅姟鍣ㄩ厤缃?
 server:
   host: 0.0.0.0
-  port: 8001
+  port: 10001
   reload: false
 
 # API 閰嶇疆
