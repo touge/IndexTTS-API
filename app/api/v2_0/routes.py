@@ -3,13 +3,13 @@ from fastapi import APIRouter, HTTPException, Depends
 from app.api.schemas import TTSRequestV2_0, TaskSubmitResponse, TaskStatusResponse
 from app.core.queue_manager import QueueManager, TaskType, TTSEngine
 from app.core.security import verify_token
+from app.core.audio_utils import resolve_audio_prompt
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 def get_queue_manager():
     raise NotImplementedError
-
 @router.post("/generate", response_model=TaskSubmitResponse)
 async def generate_v2_0(
     request: TTSRequestV2_0,
@@ -106,6 +106,12 @@ async def generate_v2_0(
         # 移除 emotion_mode 参数（如果用户误传了）
         params.pop('emotion_mode', None)
         
+        # 解析音频路径（支持短名称）
+        if 'spk_audio_prompt' in params:
+            params['spk_audio_prompt'] = resolve_audio_prompt(params['spk_audio_prompt'])
+        if 'emo_audio_prompt' in params:
+            params['emo_audio_prompt'] = resolve_audio_prompt(params['emo_audio_prompt'])
+            
         # 打印用户请求参数（用于调试）
         logger.info(f"V2.0 Request payload: {params}")
         
@@ -113,8 +119,7 @@ async def generate_v2_0(
         from pathlib import Path
         required_files = [params.get('spk_audio_prompt')]
         if params.get('emo_audio_prompt'):
-            required_files.append(params['emo_audio_prompt'])
-        
+            required_files.append(params['emo_audio_prompt'])        
         missing_files = []
         for file_path in required_files:
             if file_path and not Path(file_path).exists():
@@ -259,6 +264,12 @@ async def generate_v2_0_with_emo_mode(
     try:
         params = request.model_dump(exclude_none=True)
         
+        # 解析音频路径（支持短名称）
+        if 'spk_audio_prompt' in params:
+            params['spk_audio_prompt'] = resolve_audio_prompt(params['spk_audio_prompt'])
+        if 'emo_audio_prompt' in params:
+            params['emo_audio_prompt'] = resolve_audio_prompt(params['emo_audio_prompt'])
+            
         # 打印用户请求参数（用于调试）
         logger.info(f"V2.0 emo_mode Request payload: {params}")
         
@@ -266,8 +277,7 @@ async def generate_v2_0_with_emo_mode(
         from pathlib import Path
         required_files = [params.get('spk_audio_prompt')]
         if params.get('emo_audio_prompt'):
-            required_files.append(params['emo_audio_prompt'])
-        
+            required_files.append(params['emo_audio_prompt'])        
         missing_files = []
         for file_path in required_files:
             if file_path and not Path(file_path).exists():

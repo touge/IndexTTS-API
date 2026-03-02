@@ -72,7 +72,7 @@ async def root(token: str = Depends(verify_token)):
             "v2.0": ["/v2.0/generate", "/v2.0/emo_mode/generate"],
             "subtitle": "/subtitle/generate",
             "status": "/status/{task_id}",
+            "speakers": "/speakers",
             "docs": "/docs"
         }
     }
-

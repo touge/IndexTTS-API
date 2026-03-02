@@ -230,7 +230,7 @@ class QueueManager:
             if task.subtitle_path:
                 subtitle_url = f"/download/subtitle/{task.task_id}"
         
-        return {
+        response = {
             # 顶层基础信息
             "task_id": task.task_id,
             "status": task.status.value,
@@ -247,6 +247,8 @@ class QueueManager:
                 "subtitle_url": subtitle_url
             }
         }
+        # logging.info(f"Task status: {response}")
+        return response
     
     def _get_queue_position(self, task_id: str) -> int:
         """

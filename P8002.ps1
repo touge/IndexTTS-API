@@ -10,11 +10,11 @@
     Service listening IP address, default is 0.0.0.0
 
 .PARAMETER Port
-    Service listening port, default is 8001
+    Service listening port, default is 8002
 
 .EXAMPLE
     .\start.ps1
-    Start with default config (0.0.0.0:8001)
+    Start with default config (0.0.0.0:8002)
 
 .EXAMPLE
     .\start.ps1 -Port 9000
@@ -27,7 +27,7 @@
 
 param(
     [string]$HostAddress = "",
-    [int]$Port = 10001
+    [int]$Port = 8002
 )
 
 # Set console encoding to UTF-8

@@ -3,9 +3,9 @@ from fastapi import APIRouter, HTTPException, Depends
 from app.api.schemas import TTSRequestV1_5, TaskSubmitResponse, TaskStatusResponse
 from app.core.queue_manager import QueueManager, TaskType, TTSEngine
 from app.core.security import verify_token
+from app.core.audio_utils import resolve_audio_prompt
 
 from pathlib import Path
-
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
@@ -85,15 +85,17 @@ async def generate_v1_5(
         # 打印用户请求参数（用于调试）
         logger.info(f"V1.5 Request payload: {params}")
         
+        # 解析音频路径（支持短名称）
+        if 'spk_audio_prompt' in params:
+            params['spk_audio_prompt'] = resolve_audio_prompt(params['spk_audio_prompt'])
+            
         # 检查音频文件是否存在
-        # from pathlib import Path
         required_files = [params.get('spk_audio_prompt')]
         missing_files = []
         
         for file_path in required_files:
             if file_path and not Path(file_path).exists():
-                missing_files.append(file_path)
-        
+                missing_files.append(file_path)        
         # 如果有缺失文件，返回错误
         if missing_files:
             logger.warning(f"Missing audio files: {missing_files}")

@@ -169,3 +169,26 @@ class SubtitleGenerationResponse(BaseResponse):
     返回任务 ID 供客户端查询进度
     """
     task_id: str  # 任务 ID
+
+# ==========================================
+# 发音人列表相关模型
+# ==========================================
+
+class SpeakerMetadata(BaseModel):
+    """发音人元数据"""
+    name: str = Field(..., description="文件名（包含扩展名，如：DV.wav）")
+    path: str = Field(..., description="相对路径（作为 spk_audio_prompt 参数的值，如：voices/ref_audios/常用/DV.wav）")
+
+class SpeakerCategory(BaseModel):
+    """发音人分类"""
+    name: str = Field(..., description="分类名称（对应的文件夹名称，如：常用, 男声, 女声）")
+    speakers: List[SpeakerMetadata] = Field(..., description="该分类下的发音人列表")
+
+class SpeakerData(BaseModel):
+    categories: List[SpeakerCategory] = Field(..., description="可用发音人分类列表")
+
+class SpeakerListResponse(BaseResponse):
+    """
+    发音人列表响应模型
+    """
+    data: SpeakerData

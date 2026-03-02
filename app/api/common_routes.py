@@ -1,7 +1,8 @@
 import logging
 from fastapi import APIRouter, HTTPException, Depends
-from app.api.schemas import TaskStatusResponse
+from app.api.schemas import TaskStatusResponse, SpeakerListResponse, SpeakerData, SpeakerMetadata, SpeakerCategory
 from app.core.queue_manager import QueueManager
+from pathlib import Path
 from app.core.security import verify_token
 
 logger = logging.getLogger(__name__)
@@ -118,3 +119,47 @@ async def get_task_status(
     if not status:
         raise HTTPException(status_code=404, detail="Task not found")
     return TaskStatusResponse(**status)
+
+
+@router.get("/speakers", response_model=SpeakerListResponse, tags=["Common"])
+async def get_speakers(token: str = Depends(verify_token)):
+    """
+    获取可用发音人列表
+    
+    返回 `voices/ref_audios` 目录下所有可用的发音人音频文件，并按子目录分类聚合。
+    获取到的 `path` 字段可直接作为 `/v2.0/generate` 请求中的 `spk_audio_prompt`。
+    
+    ## 认证
+    需要 Bearer Token 认证（如果在 config.yaml 中配置了 token）
+    """
+    ref_audios_dir = Path("voices/ref_audios")
+    category_map = {}
+    
+    # 支持的音频格式
+    valid_extensions = {".wav", ".mp3", ".flac", ".ogg", ".aac", ".m4a"}
+    
+    if ref_audios_dir.exists() and ref_audios_dir.is_dir():
+        for file_path in ref_audios_dir.rglob("*"):
+            if file_path.is_file() and file_path.suffix.lower() in valid_extensions:
+                # 获取相对 voices/ref_audios/ 的路径，用于分类
+                rel_path = file_path.relative_to(ref_audios_dir)
+                category = str(rel_path.parent).replace("\\", "/") # 提取相对路径目录部分作为分类
+                if category == ".":
+                    category = "未分类"
+                
+                # 统一 Windows/Linux 路径分隔符为 /
+                system_path = str(file_path).replace("\\", "/")
+                
+                if category not in category_map:
+                    category_map[category] = []
+                    
+                category_map[category].append(SpeakerMetadata(
+                    name=file_path.stem,
+                    path=system_path
+                ))                
+    categories = [
+        SpeakerCategory(name=c_name, speakers=spks) 
+        for c_name, spks in category_map.items()
+    ]
+                
+    return SpeakerListResponse(data=SpeakerData(categories=categories))
