@@ -38,6 +38,11 @@ cd IndexTTS-API
 
 # 安装依赖
 pip install  torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cu129
+
+# 安装 pynini（必须使用 conda）
+conda install -c conda-forge pynini==2.1.6
+
+# 安装 pynini（必须使用 conda）
 pip install -r requirements.txt
 
 # 拉取indextts依赖
