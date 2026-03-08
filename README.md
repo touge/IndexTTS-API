@@ -37,7 +37,11 @@ git clone https://github.com/your-repo/IndexTTS-API.git
 cd IndexTTS-API
 
 # 安装依赖
+pip install  torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cu129
 pip install -r requirements.txt
+
+# 拉取indextts依赖
+download_indextts.ps1
 
 # 配置文件
 cp config.yaml.example config.yaml
