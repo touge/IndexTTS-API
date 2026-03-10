@@ -1,13 +1,18 @@
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.core.queue_manager import QueueManager
 from app.api.v1_5 import routes as v1_5_routes
 from app.api.v2_0 import routes as v2_0_routes
-from app.api import common_routes
+from app.api import task_routes
 from app.api import download_routes
-from app.api import upload_routes
 from app.api import subtitle_routes
+
+from app.api import speaker, emo, static_routes
+
 from app.core.security import verify_token
 
 # 配置日志
@@ -38,20 +43,60 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# 全局异常处理，统一返回格式
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    detail = exc.detail
+    message = str(detail)
+    code = exc.status_code
+    
+    # 尝试从业务侧手动抛出的字典型 detail 提取字段
+    if isinstance(detail, dict):
+        message = detail.get("error", message)
+        code = detail.get("code", code)
+        
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "status": "failed",
+            "code": code,
+            "message": message,
+            "data": None
+        }
+    )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    # 抽取只读第一条的简短抛出信息
+    err = exc.errors()[0] if exc.errors() else {}
+    msg = f"参数错误: {err.get('loc', [''])[0]} - {err.get('msg', 'validation error')}"
+    return JSONResponse(
+        status_code=422,
+        content={
+            "status": "failed",
+            "code": -1,
+            "message": msg,
+            "data": None
+        }
+    )
+
+
 # 依赖注入覆盖
 def get_queue_manager_override():
     return queue_manager
 
 app.dependency_overrides[v1_5_routes.get_queue_manager] = get_queue_manager_override
 app.dependency_overrides[v2_0_routes.get_queue_manager] = get_queue_manager_override
-app.dependency_overrides[common_routes.get_queue_manager] = get_queue_manager_override
+app.dependency_overrides[task_routes.get_queue_manager] = get_queue_manager_override
 app.dependency_overrides[download_routes.get_queue_manager] = get_queue_manager_override
 app.dependency_overrides[subtitle_routes.get_queue_manager] = get_queue_manager_override
 
 # 注册路由
-app.include_router(common_routes.router) # 挂载在根路径，即 /status/{task_id}
+app.include_router(task_routes.router) # 挂载在根路径，即 /status/{task_id}
+app.include_router(speaker.router, prefix="/speaker", tags=["Speaker"]) # 发音人路由
+app.include_router(emo.router, prefix="/emo", tags=["Emotion"]) # 情绪音路由
+app.include_router(static_routes.router, prefix="/static", tags=["Static"]) # 静态资源路由
 app.include_router(download_routes.router) # 下载路由，/download/{task_id} 和 /files/{task_id}
-app.include_router(upload_routes.router) # 上传路由，/upload/audio
 app.include_router(subtitle_routes.router, prefix="/subtitle", tags=["Subtitle"]) # 字幕生成路由
 app.include_router(v1_5_routes.router, prefix="/v1.5", tags=["V1.5"])
 app.include_router(v2_0_routes.router, prefix="/v2.0", tags=["V2.0"])
@@ -72,7 +117,9 @@ async def root(token: str = Depends(verify_token)):
             "v2.0": ["/v2.0/generate", "/v2.0/emo_mode/generate"],
             "subtitle": "/subtitle/generate",
             "status": "/status/{task_id}",
-            "speakers": "/speakers",
+            "speaker": "/speaker",
+            "emo": "/emo",
+            "static_voices": "/static/voices/{file_path}",
             "docs": "/docs"
         }
     }

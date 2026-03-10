@@ -67,122 +67,287 @@ uvicorn app.api.main:app --host 0.0.0.0 --port 8000 --workers 1
 - API 文档：http://localhost:8000/docs
 - 根路径：http://localhost:8000/
 
+---
+
+## 📦 全局统一响应结构
+
+为了极致简化不同客户端的对接，本系统的**所有 API 接口 (包括抛出的异常错误)**，均强制遵循同一个 JSON 结构体：
+
+```json
+{
+  "status": "success",  // 接口状态描述：成功 ("success") 或 失败 ("failed") 或 轮询状态 ("processing", "completed" 等)
+  "code": 0,            // 业务状态码：0 代表绝对成功，非 0 代表失败
+  "message": "操作成功", // 提供给终端用户查看的直白中文提示 (如 "上传成功"、"名称已存在" 等)
+  "data": { ... }       // 具体的业务数据负载 (无论多复杂，统统在这个节点内部)
+}
+```
+
+### 1. 常规成功返回 (增删改查)
+例如：新增或者重命名发音人
+```json
+{
+  "status": "success",
+  "code": 0,
+  "message": "发音人重命名成功 (老赫磁性版)",
+  "data": null
+}
+```
+
+### 2. 全局鉴权拦截与错误格式
+为了避免 Axios 等拦截器在取值时猜盲盒，只要触发后端报错拦截，格式同样统一：
+```json
+{
+  "status": "failed",
+  "code": -1,
+  "message": "该分类下已存在同名发音人",
+  "data": null
+}
+```
+
+### 3. 排队与配音任务流式轮询结构
+当发起生成请求后，业务详情将全部在 `data` 节点内展开：
+
+**获取生成任务 ID (POST /generate):**
+```json
+{
+  "status": "success",
+  "code": 0,
+  "message": "操作成功",
+  "data": {
+    "task_id": "7fbd0939-..."
+  }
+}
+```
+
+**轮询进度 (GET /status/{task_id}):**
+```json
+{
+  "status": "processing", // 重点注意：在这个接口，status 将承载队列轮询状态: pending/processing/completed/failed
+  "code": 0,
+  "message": "查询成功",
+  "data": {
+    "task_id": "7fbd0939-...",
+    "created_at": "2024-12-23 16:30:00",
+    "queue_position": 0, // 表示当前正在执行 (如果是 1 则代表前面还有一个人排队)
+    "queue_size": 1,
+    "error": null,
+    "download_url": null, // 当 status 变成 "completed" 时，此字段会变成可供下载的 URI
+    "file_url": null,
+    "subtitle_url": null
+  }
+}
+```
+
 ## 📡 API 端点
 
-### TTS 生成
+### 1. TTS 与字幕生成
+| 端点 | 方法 | 功能 |
+|------|------|------|
+| `/v1.5/generate` | POST | 基础 TTS 语音合成 (V1.5) |
+| `/v2.0/generate` | POST | 高级 TTS 语音合成 (推荐，支持情感控制) |
+| `/v2.0/emo_mode/generate` | POST | 简化版情感控制模式 |
+| `/subtitle/generate` | POST | 音频转字幕 (Whisper 生成 SRT) |
 
-| 端点 | 版本 | 功能 | 情感控制 |
-|------|------|------|---------|
-| `POST /v1.5/generate` | V1.5 | 基础 TTS 生成 | ❌ |
-| `POST /v2.0/generate` | V2.0 | 高级 TTS 生成（推荐） | ✅ |
-| `POST /v2.0/emo_mode/generate` | V2.0 | 简化情感控制 | ✅ |
+### 2. 任务状态与文件下载
+| 端点 | 方法 | 功能 |
+|------|------|------|
+| `/status/{task_id}` | GET | 查询生成任务的实时状态 |
+| `/download/{task_id}` | GET | 流式下载生成完毕的音频 (支持阅后即焚清理) |
+| `/files/{task_id}` | GET | 访问生成的音频静态文件 (支持断点续传及重试) |
+| `/download/subtitle/{task_id}` | GET| 下载生成的 SRT 字幕文件 |
 
-### 字幕生成
+### 3. 发音人参考资源管理 (Speaker)
+| 端点 | 方法 | 功能 |
+|------|------|------|
+| `/speaker/` | GET | 获取系统当前所有发音人列表及分类树 |
+| `/speaker/category` | POST | 新增空的分类存放发音人 |
+| `/speaker/upload` | POST | 上传新的发音人 (带有同名防冲突校验) |
+| `/speaker/rename` | PUT | 对发音人进行重命名或移动分类 |
+| `/speaker/` | DELETE| 删除指定发音人或整个分类目录 |
 
-| 端点 | 功能 |
-|------|------|
-| `POST /subtitle/generate` | 音频转字幕（Whisper + 文本对齐） |
+### 4. 情绪音参考资源管理 (Emotion)
+| 端点 | 方法 | 功能 |
+|------|------|------|
+| `/emo/` | GET | 获取系统当前所有情绪音列表及分类树 |
+| `/emo/category` | POST | 新增空的分类存放情绪音 |
+| `/emo/upload` | POST | 上传新的情绪音 (带有同名防冲突校验) |
+| `/emo/rename` | PUT | 对情绪音进行重命名或移动分类 |
+| `/emo/` | DELETE| 删除指定情绪音或整个分类目录 |
 
-### 通用端点
+### 5. 静态免限访问资源
+| 端点 | 方法 | 功能 |
+|------|------|------|
+| `/static/voices/{file_path}` | GET | 获取音频文件 (无 Token 限制，可供 `<audio>` 标签在线播放) |
 
-| 端点 | 功能 |
-|------|------|
-| `GET /status/{task_id}` | 查询任务状态 |
-| `GET /download/{task_id}` | 下载生成的音频 |
-| `GET /download/subtitle/{task_id}` | 下载生成的字幕 |
-| `POST /upload/audio` | 上传参考音频 |
+---
 
-## 💡 使用示例
+## 💡 详细使用示例
 
-### 基础 TTS 生成（V1.5）
+> **注意：** 除静态播放路由 `/static` 以外，所有接口请求 Header 均需要携带 `Authorization: Bearer your-token`（受 `config.yaml` 控制）。
 
+### 1. TTS 任务生成相关
+
+**1.1 基础 TTS 生成（V1.5）**
 ```python
 import requests
-
 headers = {"Authorization": "Bearer your-token"}
-
 response = requests.post(
     "http://localhost:8000/v1.5/generate",
     headers=headers,
     json={
-        "text": "这是要合成的文本",
-        "spk_audio_prompt": "voices/speaker.wav"
+        "text": "这是要合成的文本", 
+        "speaker": "老赫气泡音版" # 推荐直接传入发音人基础名称
     }
 )
-
-task_id = response.json()["task_id"]
-print(f"任务已提交: {task_id}")
+task_id = response.json()["data"]["task_id"]
 ```
 
-### 情感控制 TTS（V2.0）
-
+**1.2 情感控制 TTS（V2.0）**
 ```python
 import requests
-
 headers = {"Authorization": "Bearer your-token"}
-
-# 使用情感向量控制
 response = requests.post(
     "http://localhost:8000/v2.0/generate",
     headers=headers,
     json={
         "text": "今天真是太开心了！",
-        "spk_audio_prompt": "voices/speaker.wav",
-        "emo_vector": [0.7, 0.0, 0.3, 0.0, 0.0, 0.0, 0.0, 0.0],  # [高兴, 愤怒, 悲伤, ...]
-        "emo_alpha": 0.9
+        "speaker": "发音人名称",       # 必填，基础发音人
+        "emotion": "大笑",             # 可选，通过参考情绪音干预情绪
+        "emo_vector": [0.7, 0.0, 0.3, 0.0, 0.0, 0.0, 0.0, 0.0],  # 或通过向量精确干预
+        "emo_alpha": 0.9               # 干预强度
     }
 )
-
-task_id = response.json()["task_id"]
+task_id = response.json()["data"]["task_id"]
 ```
 
-### 字幕生成
-
+**1.3 字幕生成 (/subtitle/generate)**
 ```python
 import requests
-
 headers = {"Authorization": "Bearer your-token"}
-
 with open("audio.wav", "rb") as audio:
-    files = {"audio_file": audio}
-    data = {"text": "这是要对齐的文本内容"}
-    
     response = requests.post(
         "http://localhost:8000/subtitle/generate",
         headers=headers,
-        files=files,
-        data=data
+        files={"audio_file": audio},
+        data={"text": "这是需要强制对齐的文本(可选)"}
     )
-
-task_id = response.json()["task_id"]
+task_id = response.json()["data"]["task_id"]
 ```
 
-### 查询任务状态
+---
 
+### 2. 状态查询与结果下载
+
+**2.1 查询状态 (/status/{id})**
 ```python
 import requests
-import time
-
 headers = {"Authorization": "Bearer your-token"}
+response = requests.get(f"http://localhost:8000/status/{task_id}", headers=headers)
+print(response.json()) # {"status": "completed", "code": 0, "message": "查询成功", "data": {"task_id": "...", ...}} 
+```
 
-while True:
-    response = requests.get(
-        f"http://localhost:8000/status/{task_id}",
-        headers=headers
+**2.2 流式下载生成的音频 (/download/{id})**
+```python
+import requests
+headers = {"Authorization": "Bearer your-token"}
+# 适合一次性保存到本地 (依据后端配置，这可能触发"阅后即焚")
+response = requests.get(f"http://localhost:8000/download/{task_id}", headers=headers, stream=True)
+with open("result.wav", "wb") as f:
+    for chunk in response.iter_content(chunk_size=8192):
+        f.write(chunk)
+```
+
+**2.3 静态下载生成的音频 (/files/{id})**
+```python
+import requests
+headers = {"Authorization": "Bearer your-token"}
+# 支持大文件断点续传及重试获取，不会阅后即焚
+response = requests.get(f"http://localhost:8000/files/{task_id}", headers=headers)
+```
+
+**2.4 下载 SRT 字幕 (/download/subtitle/{id})**
+```python
+import requests
+headers = {"Authorization": "Bearer your-token"}
+response = requests.get(f"http://localhost:8000/download/subtitle/{task_id}", headers=headers)
+with open("result.srt", "wb") as f:
+    f.write(response.content)
+```
+
+---
+
+### 3. 发音人与情绪音资源管理
+
+**3.1 获取所有声音列表 (GET /speaker/ | /emo/)**
+```python
+import requests
+headers = {"Authorization": "Bearer your-token"}
+response = requests.get("http://localhost:8000/speaker/", headers=headers)
+```
+
+**3.2 创建空分类 (POST /speaker/category | /emo/category)**
+```python
+import requests
+headers = {"Authorization": "Bearer your-token"}
+response = requests.post(
+    "http://localhost:8000/speaker/category",
+    headers=headers,
+    json={"name": "全新的空白分类"}
+)
+```
+
+**3.3 安全上传参考音频 (POST /speaker/upload | /emo/upload)**
+```python
+import requests
+headers = {"Authorization": "Bearer your-token"}
+with open("test.wav", "rb") as f:
+    response = requests.post(
+        "http://localhost:8000/speaker/upload", 
+        headers=headers, 
+        files={"file": f}, 
+        data={
+            "category": "常用", 
+            "name": "男声一号" # 系统自带查重，如无冲突将落盘至: voices/ref_audios/常用/男声一号.wav
+        }
     )
-    status = response.json()
-    
-    if status["status"] == "completed":
-        # 下载音频
-        download_url = status["details"]["download_url"]
-        print(f"完成！下载链接: {download_url}")
-        break
-    elif status["status"] == "failed":
-        print(f"失败: {status['details']['error']}")
-        break
-    
-    print(f"状态: {status['status']}")
-    time.sleep(2)
+```
+
+**3.4 重命名和分类移动 (PUT /speaker/rename | /emo/rename)**
+```python
+import requests
+headers = {"Authorization": "Bearer your-token"}
+response = requests.put(
+    "http://localhost:8000/speaker/rename",
+    headers=headers,
+    json={
+        "old_path": "voices/ref_audios/常用/男声一号.wav",
+        "new_path": "voices/ref_audios/不常用/老兵男声.wav"
+    }
+)
+```
+
+**3.5 删除音频或分类 (DELETE /speaker/ | /emo/)**
+```python
+import requests
+headers = {"Authorization": "Bearer your-token"}
+response = requests.delete(
+    "http://localhost:8000/speaker/",
+     headers=headers,
+     json={"path": "voices/ref_audios/不常用/老兵男声.wav"} # 直接传"voices/ref_audios/不常用"则清空分类
+)
+```
+
+---
+
+### 4. 浏览器静态播放 (前端福利)
+
+给客户端/网页调用的静态路由**已移除 Token 强校验**，并指定了内容内联 (`inline`) 的响应头。开发者直接将服务器路径嵌入原生 `<audio>` 标签即可。
+
+```html
+<!-- 直接绑定 src，实现在线无阻碍试听，避免诱导浏览器下载行为 -->
+<audio controls src="http://localhost:8000/static/voices/ref_audios/常用/男声一号.wav"></audio>
+
+<audio controls src="http://localhost:8000/static/voices/emo_audios/开心/大笑.wav"></audio>
 ```
 
 ## ⚙️ 配置说明
@@ -240,7 +405,7 @@ api:
 #### 2. 参考音频控制
 ```python
 {
-    "emo_audio_prompt": "voices/happy.wav",
+    "emotion": "大笑", # 直接用情绪名称，或相对路径 "voices/emo_audios/开心/大笑.wav"
     "emo_alpha": 0.8  # 情感强度 0.0-1.0
 }
 ```

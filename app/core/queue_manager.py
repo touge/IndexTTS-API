@@ -231,13 +231,11 @@ class QueueManager:
                 subtitle_url = f"/download/subtitle/{task.task_id}"
         
         response = {
-            # 顶层基础信息
-            "task_id": task.task_id,
             "status": task.status.value,
-            "created_at": created_at_str,
-            
-            # 详细信息
-            "details": {
+            "message": "查询成功",
+            "data": {
+                "task_id": task.task_id,
+                "created_at": created_at_str,
                 "error": task.error,
                 "queue_position": queue_position,
                 "queue_size": queue_size,

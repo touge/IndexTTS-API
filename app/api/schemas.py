@@ -34,40 +34,41 @@ class BaseResponse(BaseModel):
     通用 API 响应基类
     所有 API 响应都应继承或包含此结构。
     """
+    status: str = "success"        # 接口状态 (success 或 failed，任务状态使用 pending/completed 等)
     code: int = 0                  # 状态码 (0 表示成功，其他值表示特定的错误类型)
-    message: str = "success"       # 状态信息或错误描述文本
-    data: Optional[Dict[str, Any]] = None  # 响应数据载荷 (可选，通常包含实际的业务数据)
+    message: str = "操作成功"       # 状态信息或错误描述文本
+    data: Optional[Any] = None     # 响应数据载荷 (可选，通常包含实际的业务数据)
+
+class TaskSubmitData(BaseModel):
+    task_id: str                   # 唯一的任务 ID (UUID 格式)，用于后续轮询状态
 
 class TaskSubmitResponse(BaseResponse):
     """
     任务提交成功后的响应模型
     返回任务 ID 供客户端查询进度。
     """
-    task_id: str                   # 唯一的任务 ID (UUID 格式)，用于后续轮询状态
+    data: TaskSubmitData
+
+class TaskData(BaseModel):
+    """任务详细信息"""
+    task_id: str                   # 任务 ID
+    created_at: str                # 任务创建时间（人类可读格式，如 "2024-12-23 16:30:00"）
+    error: Optional[str] = None           # 错误信息（仅 failed 状态）
+    queue_position: Optional[int] = None  # 队列位置 (0=执行中, >=1=排队中, None=已结束)
+    queue_size: int = 0                   # 当前队列总大小
+    created_timestamp: float = 0.0        # 原始时间戳（用于程序处理）
+    download_url: Optional[str] = None    # 流式下载链接（推荐，仅 completed 状态）
+    file_url: Optional[str] = None        # 静态文件链接（备用，仅 completed 状态）
+    subtitle_url: Optional[str] = None    # 字幕文件下载链接（仅 completed 状态且生成了字幕）
 
 class TaskStatusResponse(BaseResponse):
     """
     任务状态查询接口的响应模型
     
-    采用分级结构，顶层为基础信息，详细信息放在 details 子字段中
+    外层通过 status (pending, processing, completed, failed) 标识任务状态
+    任务的全部详细信息统一位于 data 字段中
     """
-    # 基础信息（顶层）
-    task_id: str                   # 任务 ID
-    status: str                    # 任务状态 (pending, processing, completed, failed)
-    created_at: str                # 任务创建时间（人类可读格式，如 "2024-12-23 16:30:00"）
-    
-    # 详细信息（子字段）
-    class Details(BaseModel):
-        """任务详细信息"""
-        error: Optional[str] = None           # 错误信息（仅 failed 状态）
-        queue_position: Optional[int] = None  # 队列位置 (0=执行中, >=1=排队中, None=已结束)
-        queue_size: int = 0                   # 当前队列总大小
-        created_timestamp: float = 0.0        # 原始时间戳（用于程序处理）
-        download_url: Optional[str] = None    # 流式下载链接（推荐，仅 completed 状态）
-        file_url: Optional[str] = None        # 静态文件链接（备用，仅 completed 状态）
-        subtitle_url: Optional[str] = None    # 字幕文件下载链接（仅 completed 状态且生成了字幕）
-    
-    details: Details
+    data: Optional[TaskData] = None
 
 # ==========================================
 # 请求参数模型 (Request Models)
@@ -80,7 +81,7 @@ class TTSRequestV1_5(BaseModel):
     """
     # --- 核心参数 ---
     text: str = Field(..., description="要合成的文本内容")
-    spk_audio_prompt: str = Field(..., description="参考音频路径 (用于克隆音色，需为服务器本地路径)")
+    speaker: str = Field(..., description="参考发音人 (可以是完整路径或直接输入名称，如 '老赫氣泡音版')")
     output_path: Optional[str] = Field(None, description="输出文件保存路径。如果不提供，系统将自动生成临时路径。")
     volume: Optional[float] = Field(None, description="音量大小 (0.0 ~ 2.0)，1.0 为原始音量，暂未实现")
     
@@ -113,7 +114,7 @@ class TTSRequestV2_0(BaseModel):
     """
     # --- 核心参数 ---
     text: str = Field(..., description="要合成的文本内容")
-    spk_audio_prompt: str = Field(..., description="参考音频路径 (作为主音色克隆源)")
+    speaker: str = Field(..., description="参考发音人 (可以是完整路径或直接输入名称，如 '老赫氣泡音版')")
     output_path: Optional[str] = Field(None, description="输出文件保存路径")
     volume: Optional[float] = Field(None, description="音量大小 (0.0 ~ 2.0)，1.0 为原始音量，暂未实现")
     
@@ -122,7 +123,7 @@ class TTSRequestV2_0(BaseModel):
     
     # --- 情感与风格控制参数（根据 emotion_mode 自动使用） ---
     # 1. 情感参考音频：使用另一段音频的情感风格应用到当前合成中
-    emo_audio_prompt: Optional[str] = Field(None, description="情感参考音频路径 (可选)。如果不填，默认复用 spk_audio_prompt。")
+    emotion: Optional[str] = Field(None, description="情感参考音 (可以是完整路径或直接输入名称)。如果不填，默认复用 speaker。")
     
     # 2. 情感混合：控制情感参考音频对最终结果的影响程度
     emo_alpha: float = 1.0         # 情感强度系数 (0.0 ~ 1.0+)。1.0 为标准强度，数值越大情感越强烈。
@@ -176,8 +177,8 @@ class SubtitleGenerationResponse(BaseResponse):
 
 class SpeakerMetadata(BaseModel):
     """发音人元数据"""
-    name: str = Field(..., description="文件名（包含扩展名，如：DV.wav）")
-    path: str = Field(..., description="相对路径（作为 spk_audio_prompt 参数的值，如：voices/ref_audios/常用/DV.wav）")
+    name: str = Field(..., description="文件名（包含扩展名，如：DV.wav）。你可以直接拿它的无扩展名或全名作为 speaker 参数")
+    path: str = Field(..., description="相对路径（作为 speaker 参数的值，如：voices/ref_audios/常用/DV.wav）")
 
 class SpeakerCategory(BaseModel):
     """发音人分类"""
@@ -192,3 +193,39 @@ class SpeakerListResponse(BaseResponse):
     发音人列表响应模型
     """
     data: SpeakerData
+
+# ==========================================
+# 情绪音列表相关模型
+# ==========================================
+
+class EmotionMetadata(BaseModel):
+    """情绪音元数据"""
+    name: str = Field(..., description="文件名（包含扩展名，如：laugh.wav）。你可以直接拿它的无扩展名或全名作为 emotion 参数")
+    path: str = Field(..., description="相对路径（作为 emotion 参数的值，如：voices/emo_audios/开心/laugh.wav）")
+
+class EmotionCategory(BaseModel):
+    """情绪音分类"""
+    name: str = Field(..., description="分类名称（对应的文件夹名称，如：开心, 伤心, 生气）")
+    emos: List[EmotionMetadata] = Field(..., description="该分类下的情绪音列表")
+
+class EmotionData(BaseModel):
+    categories: List[EmotionCategory] = Field(..., description="可用情绪音分类列表")
+
+class EmotionListResponse(BaseResponse):
+    """
+    情绪音列表响应模型
+    """
+    data: EmotionData
+
+class VoiceDeleteRequest(BaseModel):
+    """删除语音文件请求"""
+    path: str = Field(..., description="要删除的文件的相对路径，如 'voices/ref_audios/speaker.wav'")
+
+class VoiceRenameRequest(BaseModel):
+    """重命名语音文件或文件夹请求"""
+    old_path: str = Field(..., description="旧路径，如 'voices/ref_audios/old.wav'")
+    new_path: str = Field(..., description="新路径，如 'voices/ref_audios/new.wav'")
+
+class CategoryCreateRequest(BaseModel):
+    """新建空分类请求"""
+    name: str = Field(..., description="要创建的新分类名称")

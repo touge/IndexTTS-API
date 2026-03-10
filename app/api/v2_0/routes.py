@@ -29,7 +29,7 @@ async def generate_v2_0(
     ```json
     {
         "text": "这是测试文本",
-        "spk_audio_prompt": "voices/speaker.wav"
+        "speaker": "张三"
     }
     ```
     
@@ -38,13 +38,13 @@ async def generate_v2_0(
     ```json
     {
         "text": "这是测试文本",
-        "spk_audio_prompt": "voices/speaker.wav",
-        "emo_audio_prompt": "voices/happy.wav",
+        "speaker": "张三",
+        "emotion": "开心",
         "emo_alpha": 0.8
     }
     ```
     参数说明:
-    - emo_audio_prompt: 情感参考音频路径
+    - emotion: 情感参考音
     - emo_alpha: 情感强度 (0.0-1.0, 默认1.0)
     
     ### 方式3: 情绪向量控制
@@ -52,7 +52,7 @@ async def generate_v2_0(
     ```json
     {
         "text": "这是测试文本",
-        "spk_audio_prompt": "voices/speaker.wav",
+        "speaker": "张三",
         "emo_vector": [0.7, 0.0, 0.3, 0.0, 0.0, 0.0, 0.0, 0.0],
         "emo_alpha": 0.9
     }
@@ -64,7 +64,7 @@ async def generate_v2_0(
     ```json
     {
         "text": "今天真是太开心了！",
-        "spk_audio_prompt": "voices/speaker.wav",
+        "speaker": "张三",
         "use_emo_text": true
     }
     ```
@@ -72,7 +72,7 @@ async def generate_v2_0(
     ```json
     {
         "text": "这是要合成的文本",
-        "spk_audio_prompt": "voices/speaker.wav",
+        "speaker": "张三",
         "use_emo_text": true,
         "emo_text": "非常高兴和激动"
     }
@@ -84,7 +84,7 @@ async def generate_v2_0(
     ```json
     {
         "text": "这是要合成的文本",
-        "spk_audio_prompt": "voices/speaker.wav",
+        "speaker": "张三",
         "generate_subtitle": true  // 可选，是否生成字幕文件，默认false
     }
     ```
@@ -106,7 +106,13 @@ async def generate_v2_0(
         # 移除 emotion_mode 参数（如果用户误传了）
         params.pop('emotion_mode', None)
         
-        # 解析音频路径（支持短名称）
+        # 兼容新参数并映射到底层参数
+        if 'speaker' in params:
+            params['spk_audio_prompt'] = params.pop('speaker')
+        if 'emotion' in params:
+            params['emo_audio_prompt'] = params.pop('emotion')
+        
+        # 解析音频路径（支持短名称，实际上 utils 已经支持了不过我们前置兼容了）
         if 'spk_audio_prompt' in params:
             params['spk_audio_prompt'] = resolve_audio_prompt(params['spk_audio_prompt'])
         if 'emo_audio_prompt' in params:
@@ -179,7 +185,7 @@ async def generate_v2_0_with_emo_mode(
     ```json
     {
         "text": "这是测试文本",
-        "spk_audio_prompt": "voices/speaker.wav",
+        "speaker": "张三",
         "emotion_mode": "same_as_speaker"
     }
     ```
@@ -189,13 +195,13 @@ async def generate_v2_0_with_emo_mode(
     ```json
     {
         "text": "这是测试文本",
-        "spk_audio_prompt": "voices/speaker.wav",
+        "speaker": "张三",
         "emotion_mode": "reference_audio",
-        "emo_audio_prompt": "voices/happy.wav",  // 必填
+        "emotion": "开心",  // 必填
         "emo_alpha": 0.8  // 可选，默认1.0
     }
     ```
-    **必填参数**: emo_audio_prompt  
+    **必填参数**: emotion
     **可选参数**: emo_alpha (情感强度，0.0-1.0)
     
     ### 模式3: emotion_vector（情绪向量）
@@ -203,7 +209,7 @@ async def generate_v2_0_with_emo_mode(
     ```json
     {
         "text": "这是测试文本",
-        "spk_audio_prompt": "voices/speaker.wav",
+        "speaker": "张三",
         "emotion_mode": "emotion_vector",
         "emo_vector": [0.7, 0.0, 0.3, 0.0, 0.0, 0.0, 0.0, 0.0],  // 必填，8维
         "emo_alpha": 0.9  // 可选，默认1.0
@@ -218,7 +224,7 @@ async def generate_v2_0_with_emo_mode(
     ```json
     {
         "text": "今天真是太开心了！",
-        "spk_audio_prompt": "voices/speaker.wav",
+        "speaker": "张三",
         "emotion_mode": "text_driven"
         // emo_text 可选，不填则使用 text
     }
@@ -227,7 +233,7 @@ async def generate_v2_0_with_emo_mode(
     ```json
     {
         "text": "这是要合成的文本",
-        "spk_audio_prompt": "voices/speaker.wav",
+        "speaker": "张三",
         "emotion_mode": "text_driven",
         "emo_text": "非常高兴和激动"  // 可选
     }
@@ -240,7 +246,7 @@ async def generate_v2_0_with_emo_mode(
     ```json
     {
         "text": "这是要合成的文本",
-        "spk_audio_prompt": "voices/speaker.wav",
+        "speaker": "张三",
         "emotion_mode": "same_as_speaker",
         "generate_subtitle": true  // 可选，是否生成字幕文件，默认false
     }
@@ -252,7 +258,7 @@ async def generate_v2_0_with_emo_mode(
     - 可通过 `/download/subtitle/{task_id}` 下载字幕文件
     
     ## 参数验证
-    - reference_audio 模式必须提供 emo_audio_prompt，否则返回 400 错误
+    - reference_audio 模式必须提供 emotion，否则返回 400 错误
     - emotion_vector 模式必须提供 8 维 emo_vector，否则返回 400 错误
     
     ## 认证
@@ -264,6 +270,12 @@ async def generate_v2_0_with_emo_mode(
     try:
         params = request.model_dump(exclude_none=True)
         
+        # 兼容新参数并映射到底层参数
+        if 'speaker' in params:
+            params['spk_audio_prompt'] = params.pop('speaker')
+        if 'emotion' in params:
+            params['emo_audio_prompt'] = params.pop('emotion')
+            
         # 解析音频路径（支持短名称）
         if 'spk_audio_prompt' in params:
             params['spk_audio_prompt'] = resolve_audio_prompt(params['spk_audio_prompt'])
@@ -310,7 +322,7 @@ async def generate_v2_0_with_emo_mode(
             if not params.get('emo_audio_prompt'):
                 raise HTTPException(
                     status_code=400, 
-                    detail="emotion_mode='reference_audio' requires 'emo_audio_prompt' parameter"
+                    detail="emotion_mode='reference_audio' requires 'emotion' parameter"
                 )
             params['use_emo_text'] = False
             params['emo_vector'] = None

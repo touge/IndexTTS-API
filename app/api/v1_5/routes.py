@@ -30,7 +30,7 @@ async def generate_v1_5(
     ```json
     {
         "text": "这是要合成的文本内容",
-        "spk_audio_prompt": "voices/speaker.wav"
+        "speaker": "张三"
     }
     ```
     
@@ -38,7 +38,7 @@ async def generate_v1_5(
     ```json
     {
         "text": "这是要合成的文本内容",  // 必填
-        "spk_audio_prompt": "voices/speaker.wav",  // 必填
+        "speaker": "voices/speaker.wav",  // 必填
         "output_path": "output/result.wav",  // 可选，不填则自动生成
         
         // 以下为可选的生成控制参数
@@ -58,7 +58,7 @@ async def generate_v1_5(
     
     ## 核心参数
     - **text** (必填): 要合成的文本
-    - **spk_audio_prompt** (必填): 参考音频路径
+    - **speaker** (必填): 参考发音人 (名称或路径)
     - **output_path** (可选): 输出文件路径
     
     ## 生成控制参数（全部可选）
@@ -85,6 +85,10 @@ async def generate_v1_5(
         # 打印用户请求参数（用于调试）
         logger.info(f"V1.5 Request payload: {params}")
         
+        # 转换参数适配底层引擎
+        if 'speaker' in params:
+            params['spk_audio_prompt'] = params.pop('speaker')
+            
         # 解析音频路径（支持短名称）
         if 'spk_audio_prompt' in params:
             params['spk_audio_prompt'] = resolve_audio_prompt(params['spk_audio_prompt'])
