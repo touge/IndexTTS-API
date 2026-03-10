@@ -1,6 +1,6 @@
 import logging
 from fastapi import APIRouter, HTTPException, Depends
-from app.api.schemas import TTSRequestV2_0, TaskSubmitResponse, TaskStatusResponse
+from app.api.schemas import TTSRequestV2_0, TaskSubmitResponse, TaskStatusResponse, TaskSubmitData
 from app.core.queue_manager import QueueManager, TaskType, TTSEngine
 from app.core.security import verify_token
 from app.core.audio_utils import resolve_audio_prompt
@@ -160,7 +160,7 @@ async def generate_v2_0(
             engine_version="V2.0",
             params=params
         )
-        return TaskSubmitResponse(task_id=task_id)
+        return TaskSubmitResponse(data=TaskSubmitData(task_id=task_id))
     except Exception as e:
         logger.error(f"Failed to submit V2.0 task: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -365,7 +365,7 @@ async def generate_v2_0_with_emo_mode(
             engine_version="V2.0",
             params=params
         )
-        return TaskSubmitResponse(task_id=task_id)
+        return TaskSubmitResponse(data=TaskSubmitData(task_id=task_id))
     except HTTPException:
         raise
     except Exception as e:

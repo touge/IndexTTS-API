@@ -1,6 +1,6 @@
 import logging
 from fastapi import APIRouter, HTTPException, Depends
-from app.api.schemas import TTSRequestV1_5, TaskSubmitResponse, TaskStatusResponse
+from app.api.schemas import TTSRequestV1_5, TaskSubmitResponse, TaskStatusResponse, TaskSubmitData
 from app.core.queue_manager import QueueManager, TaskType, TTSEngine
 from app.core.security import verify_token
 from app.core.audio_utils import resolve_audio_prompt
@@ -118,7 +118,7 @@ async def generate_v1_5(
             engine_version="V1.5",
             params=params
         )
-        return TaskSubmitResponse(task_id=task_id)
+        return TaskSubmitResponse(data=TaskSubmitData(task_id=task_id))
     except HTTPException:
         raise
     except Exception as e:
