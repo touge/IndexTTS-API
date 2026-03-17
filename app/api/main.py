@@ -14,6 +14,11 @@ from app.api import subtitle_routes
 from app.api import speaker, emo, static_routes
 
 from app.core.security import verify_token
+from app.utils.yaml_config_loader import YamlConfigLoader
+from app.utils.log_cleaner import start_cleanup_thread as start_log_cleanup_thread
+
+# Load config once at module level for use in lifespan
+_config = YamlConfigLoader("config.yaml")
 
 # 配置日志
 logging.basicConfig(
@@ -27,13 +32,14 @@ queue_manager = QueueManager()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 启动时
+    # On startup
     from app.core.file_cleanup import cleanup_service
     await queue_manager.start()
-    cleanup_service.start()  # 启动文件清理服务
+    cleanup_service.start()  # Start file cleanup service
+    start_log_cleanup_thread(_config)  # Start log file cleanup thread
     yield
-    # 关闭时
-    cleanup_service.stop()  # 停止文件清理服务
+    # On shutdown
+    cleanup_service.stop()  # Stop file cleanup service
     await queue_manager.stop()
 
 app = FastAPI(
