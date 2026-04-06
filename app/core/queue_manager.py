@@ -1,4 +1,5 @@
 import asyncio
+import os
 import logging
 from typing import Dict, Any, Optional
 from dataclasses import dataclass, field
@@ -381,7 +382,6 @@ class QueueManager:
         
         # 确保 output_path 存在
         if not params.get('output_path'):
-            import os
             output_dir = "outputs"
             os.makedirs(output_dir, exist_ok=True)
             params['output_path'] = os.path.join(output_dir, f"{str(uuid.uuid4())}.wav")
@@ -389,51 +389,145 @@ class QueueManager:
         logger.info(f"Running inference for {version} with params: {params.keys()}")
 
         try:
-            output_path = None
+            # --- 文本智能分段与分步合成逻辑 ---
+            import re
+            import soundfile as sf
+            import numpy as np
+            import torch
             
-            if version == "V1.5":
-                # V1.5 use infer wrapper
-                # 适配参数: spk_audio_prompt -> audio_prompt
-                infer_params = params.copy()
-                if 'spk_audio_prompt' in infer_params:
-                    infer_params['audio_prompt'] = infer_params.pop('spk_audio_prompt')
-                
-                # 过滤不必要的参数
-                valid_keys = ['text', 'audio_prompt', 'output_path', 'verbose', 'max_text_tokens_per_segment']
-                call_kwargs = {k: v for k, v in infer_params.items() if k in valid_keys}
-                
-                # 将其他参数放入 generation_kwargs
-                extra_kwargs = {k: v for k, v in infer_params.items() if k not in valid_keys and k in [
-                    'top_k', 'top_p', 'temperature', 'do_sample', 'length_penalty', 'repetition_penalty', 'num_beams', 'max_mel_tokens'
-                ]}
-                call_kwargs.update(extra_kwargs)
-                
-                output_path = model.infer(**call_kwargs)
+            original_text = params['text']
+            
+            # 分段算法（按换行和标点切分，最大约 300 字左右）
+            def chunk_text(text: str, max_chars: int = 300):
+                paragraphs = [p.strip() for p in text.split('\n') if p.strip()]
+                chunks = []
+                for p in paragraphs:
+                    if len(p) <= max_chars:
+                        chunks.append(p)
+                    else:
+                        sentences = re.split(r'(?<=[。！？；!?])', p)
+                        current_chunk = ""
+                        for sentence in sentences:
+                            if not sentence.strip():
+                                continue
+                            if len(current_chunk) + len(sentence) <= max_chars:
+                                current_chunk += sentence
+                            else:
+                                if current_chunk:
+                                    chunks.append(current_chunk)
+                                if len(sentence) > max_chars:
+                                    sub_sentences = re.split(r'(?<=[，、,])', sentence)
+                                    sub_chunk = ""
+                                    for sub_s in sub_sentences:
+                                        if not sub_s.strip(): continue
+                                        if len(sub_chunk) + len(sub_s) <= max_chars:
+                                            sub_chunk += sub_s
+                                        else:
+                                            if sub_chunk: chunks.append(sub_chunk)
+                                            sub_chunk = sub_s
+                                    current_chunk = sub_chunk
+                                else:
+                                    current_chunk = sentence
+                        if current_chunk:
+                            chunks.append(current_chunk)
+                return [c for c in chunks if c.strip()]
 
-            elif version == "V2.0":
-                # V2.0 Inference: infer(spk_audio_prompt, text, output_path, ...)
-                valid_keys = [
-                    'spk_audio_prompt', 'text', 'output_path', 
-                    'emo_audio_prompt', 'emo_alpha', 'emo_vector', 
-                    'use_emo_text', 'emo_text', 'use_random', 
-                    'interval_silence', 'verbose', 'max_text_tokens_per_segment'
-                ]
-                call_kwargs = {k: v for k, v in params.items() if k in valid_keys}
+            text_chunks = chunk_text(original_text)
+            logger.info(f"Text split into {len(text_chunks)} chunks to prevent VRAM overflow.")
+            
+            output_path = params['output_path']
+            temp_files = []
+            
+            try:
+                for idx, chunk in enumerate(text_chunks):
+                    logger.info(f"Processing chunk {idx+1}/{len(text_chunks)}: {chunk[:20]}...")
+                    
+                    # 生成临时音频文件路径
+                    chunk_output = output_path.replace(".wav", f"_chunk_{idx}.wav")
+                    temp_files.append(chunk_output)
+                    
+                    if version == "V1.5":
+                        infer_params = params.copy()
+                        infer_params['text'] = chunk
+                        if 'spk_audio_prompt' in infer_params:
+                            infer_params['audio_prompt'] = infer_params.pop('spk_audio_prompt')
+                        valid_keys = ['text', 'audio_prompt', 'output_path', 'verbose', 'max_text_tokens_per_segment']
+                        call_kwargs = {k: v for k, v in infer_params.items() if k in valid_keys}
+                        extra_kwargs = {k: v for k, v in infer_params.items() if k not in valid_keys and k in [
+                            'top_k', 'top_p', 'temperature', 'do_sample', 'length_penalty', 'repetition_penalty', 'num_beams', 'max_mel_tokens'
+                        ]}
+                        call_kwargs.update(extra_kwargs)
+                        call_kwargs['output_path'] = chunk_output
+                        model.infer(**call_kwargs)
+                        
+                    elif version == "V2.0":
+                        infer_params = params.copy()
+                        infer_params['text'] = chunk
+                        # 动态指定 emotion 文本，防止送入 qwen 的文本过长发生显存溢出
+                        if infer_params.get('use_emo_text', False) and not infer_params.get('emo_text'):
+                            infer_params['emo_text'] = chunk
+                            
+                        valid_keys = [
+                            'spk_audio_prompt', 'text', 'output_path', 
+                            'emo_audio_prompt', 'emo_alpha', 'emo_vector', 
+                            'use_emo_text', 'emo_text', 'use_random', 
+                            'interval_silence', 'verbose', 'max_text_tokens_per_segment'
+                        ]
+                        call_kwargs = {k: v for k, v in infer_params.items() if k in valid_keys}
+                        extra_kwargs = {k: v for k, v in infer_params.items() if k not in valid_keys and k in [
+                            'top_k', 'top_p', 'temperature', 'do_sample', 'length_penalty', 'repetition_penalty', 'num_beams', 'max_mel_tokens'
+                        ]}
+                        call_kwargs.update(extra_kwargs)
+                        call_kwargs['output_path'] = chunk_output
+                        
+                        if hasattr(model, 'infer'):
+                            model.infer(**call_kwargs)
+                        else:
+                            raise RuntimeError(f"Model {version} has no 'infer' method")
+                    else:
+                        raise ValueError(f"Unsupported version: {version}")
+                        
+                    # 主动清理显存，防止在长文本任务中途溢出
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                        
+                # 所有分段生成完毕后，合并音频
+                logger.info(f"Merging {len(temp_files)} audio chunks into final output...")
+                combined_audio = []
+                sample_rate = 22050
                 
-                # Extra generation kwargs
-                extra_kwargs = {k: v for k, v in params.items() if k not in valid_keys and k in [
-                    'top_k', 'top_p', 'temperature', 'do_sample', 'length_penalty', 'repetition_penalty', 'num_beams', 'max_mel_tokens'
-                ]}
-                call_kwargs.update(extra_kwargs)
-
-                if hasattr(model, 'infer'):
-                    model.infer(**call_kwargs)
+                for fpath in temp_files:
+                    if os.path.exists(fpath):
+                        audio_data, sr = sf.read(fpath)
+                        sample_rate = sr
+                        combined_audio.append(audio_data)
+                        
+                        # 增加段落间隔静音 (从 params 获取 interval_silence, 默认 200 ms)
+                        interval_ms = params.get('interval_silence', 200)
+                        if interval_ms > 0:
+                            silence = np.zeros(int(sr * interval_ms / 1000.0), dtype=audio_data.dtype)
+                            combined_audio.append(silence)
+                            
+                # 去除最后多余的一段静音并拼接
+                if params.get('interval_silence', 200) > 0 and len(combined_audio) > 1:
+                    combined_audio.pop()
+                    
+                if combined_audio:
+                    # 使用 np.concatenate 并在写入时保持原采样格式
+                    final_audio = np.concatenate(combined_audio)
+                    sf.write(output_path, final_audio, sample_rate, subtype='PCM_16')
                 else:
-                    raise RuntimeError(f"Model {version} has no 'infer' method")
-                
-                output_path = params['output_path']
-            else:
-                raise ValueError(f"Unsupported version: {version}")
+                    raise RuntimeError("No audio chunks generated or read successfully.")
+                    
+            finally:
+                # 清理临时文件
+                for fpath in temp_files:
+                    if os.path.exists(fpath):
+                        try:
+                            # 释放文件占用
+                            os.remove(fpath)
+                        except Exception as e:
+                            logger.warning(f"Failed to remove temp file {fpath}: {e}")
             
             # 生成字幕 (如果需要)
             subtitle_path = self._generate_subtitle_if_needed(params, output_path)

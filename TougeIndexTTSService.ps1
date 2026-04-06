@@ -2,14 +2,15 @@ param(
     [int]$Port = 10001
 )
 
-# Get script directory (same as project root)
+# Get script directory
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 Set-Location $ScriptDir
 
-# Locate local python3.11
+# Locate python
 $python = Join-Path $ScriptDir "python3.11\python.exe"
+$mainPy = Join-Path $ScriptDir "main.py"
 
-# Patch port in config.yaml
+# Patch config.yaml
 $configPath = Join-Path $ScriptDir "config.yaml"
 $originalConfig = ""
 if (Test-Path $configPath) {
@@ -18,11 +19,10 @@ if (Test-Path $configPath) {
     Set-Content $configPath -Value $patched -NoNewline -Encoding UTF8
 }
 
-# Start TougeIndexTTS service
+# Start service
 try {
-    & $python main.py
+    & $python $mainPy
 } finally {
-    # Restore original config
     if ($originalConfig -ne "") {
         Set-Content $configPath -Value $originalConfig -NoNewline -Encoding UTF8
     }

@@ -35,7 +35,7 @@ def _validate_emo_path(p: str) -> None:
         )
 
 @router.get("/", response_model=EmotionListResponse)
-async def get_emotions(token: str = Depends(verify_token)):
+def get_emotions(token: str = Depends(verify_token)):
     """
     获取情绪音列表
     

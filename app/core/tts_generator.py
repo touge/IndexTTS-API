@@ -179,8 +179,6 @@ class TTSGenerator:
                  emo_text: Optional[str] = None,
                  use_emo_text: bool = False,
                  use_random: bool = False,
-                 speed: float = 1.0,
-                 volume: int = 100,
                  verbose: bool = True,
                  use_chunking: bool = False,
                  progress_callback: Optional[callable] = None) -> bool:
@@ -213,8 +211,6 @@ class TTSGenerator:
                     output_path=output_path,
                     emotion_mode=emotion_mode,
                     emo_audio_prompt=emo_audio_prompt,
-                    speed=speed,
-                    volume=volume,
                     progress_callback=progress_callback
                 )
             
@@ -267,19 +263,6 @@ class TTSGenerator:
             if progress_callback:
                 progress_callback(95, "正在进行后处理...")
                 
-            # 调试: 打印参数值
-            print(f"[DEBUG] 后处理参数检查: speed={speed}, volume={volume}")
-            logger.info(f"后处理参数检查: speed={speed}, volume={volume}")
-            
-            # 如果需要调整语速和音量,在这里进行后处理
-            if speed != 1.0 or volume != 1.0:
-                print(f"[DEBUG] 开始音频后处理: speed={speed}, volume={volume}")
-                logger.info(f"开始音频后处理: speed={speed}, volume={volume}")
-                self._post_process_audio(output_path, speed, volume)
-            else:
-                print(f"[DEBUG] 跳过音频后处理: speed={speed}, volume={volume}")
-                logger.info(f"跳过音频后处理: speed={speed}, volume={volume}")
-            
             return True
             
         except Exception as e:
@@ -376,60 +359,9 @@ class TTSGenerator:
         
         return params
     
-    def _post_process_audio(self, audio_path: str, speed: float, volume: float):
-        """
-        后处理音频(调整语速和音量)
-        
-        Args:
-            audio_path: 音频文件路径
-            speed: 语速倍数 (0.5-2.0, 1.0为原速)
-            volume: 音量倍数 (0.5-10.0, 1.0为原音量)
-        """
-        try:
-            import soundfile as sf
-            import numpy as np
-            
-            # 使用 soundfile 直接读取,保持原始采样率和格式
-            audio, sr = sf.read(audio_path, dtype='float32')
-            logger.info(f"读取音频: {audio_path}, 采样率: {sr}, 形状: {audio.shape}")
-            
-            modified = False
-            
-            # 调整语速 - 使用简单的重采样
-            if speed != 1.0:
-                logger.info(f"调整语速: {speed}x (使用重采样)")
-                # 计算新的采样率
-                # 例如: 1.1倍速 = 原采样率 * 1.1,播放时会更快
-                new_sr = int(sr * speed)
-                # 保存时使用新采样率,但音频数据不变
-                # 这样播放器会以原采样率播放,实现加速效果
-                sr = new_sr
-                modified = True
-            
-            # 调整音量 (简单的数组乘法,不会改变音质)
-            if volume != 1.0:
-                logger.info(f"调整音量: {volume}x")
-                audio = audio * volume
-                # 防止溢出 - 确保在 -1.0 到 1.0 范围内
-                audio = np.clip(audio, -1.0, 1.0)
-                modified = True
-                logger.info(f"音量调整后范围: min={audio.min():.4f}, max={audio.max():.4f}")
-            
-            # 如果有修改,保存回文件
-            if modified:
-                # 使用 soundfile 保存,使用调整后的采样率
-                # soundfile 会自动将 float32 (-1.0~1.0) 转换为 PCM_16
-                sf.write(audio_path, audio, sr, subtype='PCM_16')
-                logger.info(f"音频后处理完成: {audio_path}, 新采样率: {sr}")
-            else:
-                logger.debug("无需后处理音频")
-                
-        except Exception as e:
-            logger.error(f"音频后处理失败: {e}", exc_info=True)
-            # 后处理失败不影响主流程,只记录错误
-            pass
 
-    def _generate_api(self, text, spk_audio_prompt, output_path, emotion_mode, emo_audio_prompt, speed, volume, progress_callback):
+
+    def _generate_api(self, text, spk_audio_prompt, output_path, emotion_mode, emo_audio_prompt, progress_callback):
         """调用远程 API 生成音频"""
         try:
             import requests # Lazy import
@@ -448,9 +380,7 @@ class TTSGenerator:
                 "text": text,
                 "model": model_name,
                 "spk_audio_path": str(spk_audio_prompt), # 这一步可能需要上传文件或传路径，视API而定，这里先假设传路径或Base64
-                "emotion": emotion_mode,
-                "speed": speed,
-                "volume": volume
+                "emotion": emotion_mode
             }
             
             if emo_audio_prompt:

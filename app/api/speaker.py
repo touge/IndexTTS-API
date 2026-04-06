@@ -35,7 +35,7 @@ def _validate_speaker_path(p: str) -> None:
         )
 
 @router.get("/", response_model=SpeakerListResponse)
-async def get_speakers(token: str = Depends(verify_token)):
+def get_speakers(token: str = Depends(verify_token)):
     """
     获取发音人参考音列表
     
