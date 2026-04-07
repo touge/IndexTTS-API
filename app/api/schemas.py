@@ -57,6 +57,8 @@ class TaskData(BaseModel):
     queue_position: Optional[int] = None  # 队列位置 (0=执行中, >=1=排队中, None=已结束)
     queue_size: int = 0                   # 当前队列总大小
     created_timestamp: float = 0.0        # 原始时间戳（用于程序处理）
+    current_chunk: Optional[int] = None   # 当前合成的段落索引（长文本分段时有效）
+    total_chunks: Optional[int] = None    # 合成文本的总分段数（长文本分段时有效）
     download_url: Optional[str] = None    # 流式下载链接（推荐，仅 completed 状态）
     file_url: Optional[str] = None        # 静态文件链接（备用，仅 completed 状态）
     subtitle_url: Optional[str] = None    # 字幕文件下载链接（仅 completed 状态且生成了字幕）

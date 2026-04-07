@@ -47,6 +47,8 @@ class TaskRequest:
     subtitle_path: Optional[str] = None         # 字幕文件路径
     error: Optional[str] = None
     created_at: float = field(default_factory=time.time)
+    current_chunk: int = 0                      # 当前合成的段落索引
+    total_chunks: int = 0                       # 合成文本的总分段数
 
 class QueueManager:
     def __init__(self):
@@ -246,6 +248,12 @@ class QueueManager:
                 "subtitle_url": subtitle_url
             }
         }
+        
+        # 将进度数值化暴露，便于不同客户端做自定义展示
+        if hasattr(task, 'current_chunk') and task.current_chunk > 0:
+            response["data"]["current_chunk"] = task.current_chunk
+            response["data"]["total_chunks"] = task.total_chunks
+            
         # logging.info(f"Task status: {response}")
         return response
     
@@ -299,9 +307,7 @@ class QueueManager:
                         audio_path, subtitle_path = await loop.run_in_executor(
                             self.executor, 
                             self._run_tts_inference, 
-                            request.tts_engine,
-                            request.engine_version,
-                            request.params
+                            request
                         )
                         request.result = audio_path
                         request.subtitle_path = subtitle_path
@@ -328,24 +334,24 @@ class QueueManager:
 
     def _run_tts_inference(
         self, 
-        tts_engine: TTSEngine,
-        engine_version: Optional[str],
-        params: Dict[str, Any]
+        request: TaskRequest
     ) -> tuple[str, Optional[str]]:
         """
         实际执行 TTS 推理 (运行在线程池中)
         
         Args:
-            tts_engine: TTS 引擎类型
-            engine_version: 引擎版本（可选）
-            params: 推理参数
+            request: TaskRequest实例
         
         Returns:
             (audio_path, subtitle_path): 音频文件路径和字幕文件路径(可选)
         """
+        tts_engine = request.tts_engine
+        engine_version = request.engine_version
+        params = request.params
+        
         # 根据引擎类型路由到不同的处理逻辑
         if tts_engine == TTSEngine.INDEXTTS:
-            return self._run_indextts_inference(engine_version, params)
+            return self._run_indextts_inference(request)
         elif tts_engine == TTSEngine.COSYVOICE:
             return self._run_cosyvoice_inference(params)
         else:
@@ -353,19 +359,20 @@ class QueueManager:
     
     def _run_indextts_inference(
         self,
-        version: Optional[str],
-        params: Dict[str, Any]
+        request: TaskRequest
     ) -> tuple[str, Optional[str]]:
         """
         执行 IndexTTS 推理
         
         Args:
-            version: IndexTTS 版本 ("V1.5" 或 "V2.0")
-            params: 推理参数
+            request: TaskRequest 实例
         
         Returns:
             (audio_path, subtitle_path): 音频文件路径和字幕文件路径(可选)
         """
+        version = request.engine_version
+        params = request.params
+        
         if not version:
             raise ValueError("IndexTTS engine requires 'engine_version' parameter (V1.5 or V2.0)")
         # 智能模型管理:如果模型版本切换,先卸载旧模型
@@ -435,12 +442,18 @@ class QueueManager:
             text_chunks = chunk_text(original_text)
             logger.info(f"Text split into {len(text_chunks)} chunks to prevent VRAM overflow.")
             
+            # 在任务实例上注册总分段数量
+            if hasattr(request, 'total_chunks'):
+                request.total_chunks = len(text_chunks)
+            
             output_path = params['output_path']
             temp_files = []
             
             try:
                 for idx, chunk in enumerate(text_chunks):
                     logger.info(f"Processing chunk {idx+1}/{len(text_chunks)}: {chunk[:20]}...")
+                    if hasattr(request, 'current_chunk'):
+                        request.current_chunk = idx + 1
                     
                     # 生成临时音频文件路径
                     chunk_output = output_path.replace(".wav", f"_chunk_{idx}.wav")
