@@ -1,31 +1,31 @@
-﻿# 服务器配置
+﻿# 服务端设置
 server:
   host: 0.0.0.0
   port: 10001
   reload: false
 
-# API 配置
+# API 接口配置
 api:
-  # Bearer Token 认证
-  # 留空则禁用验证（开发模式）
-  # 生产环境请设置强密码 token
+  # Bearer Token 验证
+  # 取消注释或留空可禁用验证模式
+  # 建议在生产环境强校验 token
   token: "123456"
   
-  # 输出文件配置
+  # 输出文件设置
   output:
-    # 任务输出目录（每个任务一个子目录）
+    # 存放任务的目录（每个任务一个子目录）
     tasks_dir: "tasks"
-    # 文件保留时间（小时），超过此时间的文件会被自动清理
+    # 文件保留时间（小时），超时后文件会被自动清理
     retention_hours: 8
-    # 流式下载后是否删除文件（推荐 true）
+    # 流式下载后是否删除文件（建议 true）
     delete_after_stream: true
   
-  # 文件上传配置
+  # 文件上传限制
   upload:
     # 文件大小限制（单位：MB）
-    max_subtitle_audio_size: 1024  # 字幕生成音频文件大小限制 (1GB)
-    max_reference_audio_size: 300  # 参考音频/情感音频文件大小限制 (300MB)
-    max_text_size: 50              # 文本文档大小限制 (50MB)
+    max_subtitle_audio_size: 1024  # 字幕长音频文件限制 (1GB)
+    max_reference_audio_size: 300  # 参考音频/短音频文件限制 (300MB)
+    max_text_size: 50              # 文本文件大小限制 (50MB)
     
     # 允许的文件扩展名
     allowed_audio_extensions:
@@ -38,26 +38,26 @@ api:
       - .txt
       - .md
 
-# TTS 模型配置
+# TTS 模型设置
 tts:
-  # 路径配置
+  # 路径设置
   paths:
-    # 模型根目录（存放所有模型文件的基础目录）
+    # 模型根目录（该目录通常包含所有模型文件夹）
     models_root: "models"
   
-  # 模型默认配置（运行时）
+  # 模型默认设置（运行时）
   model:
     runtime_settings:
       use_cuda_kernel: false # 是否使用 CUDA Kernel
       use_deepspeed: false   # 是否使用 Deepspeed
-      unload_after_gen: true # 生成完毕后是否释放显存（节省资源，但加大下次生成等待时间）
+      unload_after_gen: true # 生成完毕后是否释放显存（节省显存，但会增加下次生成等待时间）
 
   # 多版本模型配置
   versions:
     "V1.5":
       module: "app.core.indextts.infer"
       class_name: "IndexTTS"
-      # 模型目录（用户需根据实际情况修改）
+      # 模型目录（如果用户不可自定义，请不要修改）
       model_dir: "IndexTTS-1.5"
       config_file: "config.yaml"
       
@@ -68,28 +68,28 @@ tts:
       model_dir: "IndexTTS-2"
       config_file: "config.yaml"
   
-  # 字幕生成配置
+  # 字幕生成设置
   subtitle:
-    # 是否启用字幕生成功能（默认关闭，用户通过 API 参数 generate_subtitle 控制）
+    # 是否开启字幕生成功能（默认关闭，由用户通过 API 参数 generate_subtitle 控制）
     enabled: false
     # Whisper 模型路径（相对于 models_root）
     whisper_model: "whisper/faster-whisper-large-v2"
-    # Whisper 推理配置
+    # Whisper 推理参数
     whisper_config:
-      beam_size: 5              # Beam search 大小，影响转录准确性
+      beam_size: 5              # Beam search 倍率大小，影响转录准确度
       word_timestamps: true     # 启用词级时间戳（必须为 true）
-    # 文本对齐配置
+    # 文本对齐设置
     alignment:
-      match_threshold: 75       # 模糊匹配阈值 (0-100)，低于此值的匹配将被忽略
-      search_window_multiplier: 3  # 搜索窗口大小倍数（窗口大小 = 文本长度 × 倍数 + 20）
+      match_threshold: 75       # 模糊匹配阈值 (0-100)，低于此值认为匹配失败
+      search_window_multiplier: 3  # 搜索窗口大小数，计算窗口大小 = 文本字数 × 倍数 + 20秒
 
-# 日志文件动态管理配置（针对 logs/latest.log）
+# 日志文件动态清理设置（清理 logs/latest.log）
 log_cleanup:
-  # 检查间隔（分钟）
+  # 检查定时间隔（分钟）
   check_interval_minutes: 30
-  # latest.log 超过此大小（MB）时触发归档并截断
+  # latest.log 达到多大（MB）时进行打包归档
   max_size_mb: 5
-  # 归档后 latest.log 保留的最后行数（0 = 完全清空）
+  # 归档后 latest.log 保留最近的行数（0 = 完全清空）
   keep_lines: 200
-  # logs/ 目录中最多保留的历史归档文件数量
+  # logs/ 目录下最多保留的历史归档文件数量
   max_archives: 7
