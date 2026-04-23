@@ -1,5 +1,5 @@
 param(
-    [int]$Port = 10001
+    [int]$Port = 10000
 )
 
 # Get script directory
@@ -11,19 +11,21 @@ $python = Join-Path $ScriptDir "python3.11\python.exe"
 $mainPy = Join-Path $ScriptDir "main.py"
 
 # Patch config.yaml
-$configPath = Join-Path $ScriptDir "config.yaml"
-$originalConfig = ""
-if (Test-Path $configPath) {
-    $originalConfig = Get-Content $configPath -Raw
-    $patched = $originalConfig -replace "(?ms)(server:.*?\r?\n.*?port:\s*)(\d+)", "`${1}$Port"
-    Set-Content $configPath -Value $patched -NoNewline -Encoding UTF8
-}
+# $configPath = Join-Path $ScriptDir "config.yaml"
+# $originalConfig = ""
+# if (Test-Path $configPath) {
+#     $originalConfig = Get-Content $configPath -Raw
+#     $patched = $originalConfig -replace "(?ms)(server:.*?\r?\n.*?port:\s*)(\d+)", "`${1}$Port"
+#     Set-Content $configPath -Value $patched -NoNewline -Encoding UTF8
+# }
+
+& $python $mainPy
 
 # Start service
-try {
-    & $python $mainPy
-} finally {
-    if ($originalConfig -ne "") {
-        Set-Content $configPath -Value $originalConfig -NoNewline -Encoding UTF8
-    }
-}
+# try {
+#     & $python $mainPy
+# } finally {
+#     if ($originalConfig -ne "") {
+#         Set-Content $configPath -Value $originalConfig -NoNewline -Encoding UTF8
+#     }
+# }

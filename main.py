@@ -3,6 +3,7 @@ import bootstrap
 import signal
 import os
 import logging
+import argparse
 from app.utils.yaml_config_loader import YamlConfigLoader
 
 # 配置日志
@@ -12,19 +13,47 @@ logger = logging.getLogger(__name__)
 def main():
     """
     主函数，封装了整个应用的启动逻辑。
+    Command-line arguments take priority over config.yaml values.
     """
-    # 1. 加载配置
+    # 1. 加载配置（作为默认值）
     try:
         config = YamlConfigLoader("config.yaml")
         server_config = config.get('server', {})
-        host = server_config.get('host', '0.0.0.0')
-        port = server_config.get('port', 8000)
-        reload = server_config.get('reload', False)
+        cfg_host = server_config.get('host', '0.0.0.0')
+        cfg_port = server_config.get('port', 8000)
+        cfg_reload = server_config.get('reload', False)
     except Exception as e:
         logger.warning(f"Failed to load config, using defaults: {e}")
-        host = "0.0.0.0"
-        port = 8000
-        reload = False
+        cfg_host = "0.0.0.0"
+        cfg_port = 8000
+        cfg_reload = False
+
+    # 2. 解析命令行参数（覆盖 config.yaml 中的值）
+    parser = argparse.ArgumentParser(description="IndexTTS API Server")
+    parser.add_argument(
+        "-p", "--port",
+        type=int,
+        default=None,
+        help=f"Server port (default from config.yaml: {cfg_port})"
+    )
+    parser.add_argument(
+        "-ip", "--host",
+        type=str,
+        default=None,
+        help=f"Server host (default from config.yaml: {cfg_host})"
+    )
+    parser.add_argument(
+        "-r", "--reload",
+        action="store_true",
+        default=None,
+        help="Enable auto-reload (default from config.yaml)"
+    )
+    args = parser.parse_args()
+
+    # 命令行参数优先，未传入则使用 config.yaml 的值
+    host   = args.host   if args.host   is not None else cfg_host
+    port   = args.port   if args.port   is not None else cfg_port
+    reload = args.reload if args.reload is not None else cfg_reload
 
     # 2. 打印启动信息
     print("\n" + "="*60)
