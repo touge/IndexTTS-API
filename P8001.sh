@@ -151,20 +151,18 @@ if [ -n "$HOST_ADDRESS" ] || [ "$PORT" -ne 0 ]; then
         # Backup original config
         ORIGINAL_CONFIG=$(cat config.yaml)
         
-        # Update Host in server section
         if [ -n "$HOST_ADDRESS" ]; then
-            # Use sed to replace host value after server: section
-            sed -i '/^server:/,/port:/ s/^host:.*/host: '"$HOST_ADDRESS"'/' config.yaml
+            # Match host: under server: block with any leading whitespace
+            sed -i '/^server:/,/^[a-zA-Z]/ s/^[[:space:]]*host:.*/  host: '"$HOST_ADDRESS"'/' config.yaml
             echo -e "${CYAN}  - Set Host: $HOST_ADDRESS${NC}"
         fi
-        
-        # Update Port in server section
         if [ "$PORT" -ne 0 ]; then
-            # Use sed to replace port value after server: section
-            sed -i '/^server:/,/^[^ ]/ s/^port:.*/port: '"$PORT"'/' config.yaml
+            # Match port: under server: block with any leading whitespace
+            sed -i '/^server:/,/^[a-zA-Z]/ s/^[[:space:]]*port:.*/  port: '"$PORT"'/' config.yaml
             echo -e "${CYAN}  - Set Port: $PORT${NC}"
         fi
-        
+
+
         CONFIG_MODIFIED=true
     else
         echo -e "${YELLOW}[WARNING] config.yaml not found, will use default config${NC}"
