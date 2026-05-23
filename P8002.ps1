@@ -17,12 +17,12 @@
     Start with default config (0.0.0.0:8002)
 
 .EXAMPLE
-    .\start.ps1 -Port 9000
-    Start with port 9000
+    .\start.ps1 -Port 8002
+    Start with port 8002
 
 .EXAMPLE
-    .\start.ps1 -HostAddress 127.0.0.1 -Port 9000
-    Start with 127.0.0.1:9000
+    .\start.ps1 -HostAddress 127.0.0.1 -Port 8002
+    Start with 127.0.0.1:8002
 #>
 
 param(
@@ -105,9 +105,7 @@ if (-not (Test-Path "main.py")) {
 }
 
 # Build startup command
-# $pythonCmd = "$usePythonCmd main.py"
-$pythonCmd = "$usePythonCmd main.py --task TTSGenerator"
-
+$pythonCmd = "$usePythonCmd main.py"
 
 # If Host or Port is specified, temporarily modify config.yaml
 $configModified = $false
