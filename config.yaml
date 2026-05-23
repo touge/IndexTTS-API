@@ -1,33 +1,33 @@
-﻿# 鏈嶅姟绔缃?
+﻿# 服务端设置
 server:
   host: 0.0.0.0
-  port: 7002
+  port: 10001
   reload: false
 
-# API 鎺ュ彛閰嶇疆
+# API 接口配置
 api:
-  # Bearer Token 楠岃瘉
-  # 鍙栨秷娉ㄩ噴鎴栫暀绌哄彲绂佺敤楠岃瘉妯″紡
-  # 寤鸿鍦ㄧ敓浜х幆澧冨己鏍￠獙 token
+  # Bearer Token 验证
+  # 取消注释或留空可禁用验证模式
+  # 建议在生产环境强校验 token
   token: "123456"
   
-  # 杈撳嚭鏂囦欢璁剧疆
+  # 输出文件设置
   output:
-    # 瀛樻斁浠诲姟鐨勭洰褰曪紙姣忎釜浠诲姟涓€涓瓙鐩綍锛?
+    # 存放任务的目录（每个任务一个子目录）
     tasks_dir: "tasks"
-    # 鏂囦欢淇濈暀鏃堕棿锛堝皬鏃讹級锛岃秴鏃跺悗鏂囦欢浼氳鑷姩娓呯悊
+    # 文件保留时间（小时），超时后文件会被自动清理
     retention_hours: 8
-    # 娴佸紡涓嬭浇鍚庢槸鍚﹀垹闄ゆ枃浠讹紙寤鸿 true锛?
+    # 流式下载后是否删除文件（建议 true）
     delete_after_stream: true
   
-  # 鏂囦欢涓婁紶闄愬埗
+  # 文件上传限制
   upload:
-    # 鏂囦欢澶у皬闄愬埗锛堝崟浣嶏細MB锛?
-    max_subtitle_audio_size: 1024  # 瀛楀箷闀块煶棰戞枃浠堕檺鍒?(1GB)
-    max_reference_audio_size: 300  # 鍙傝€冮煶棰?鐭煶棰戞枃浠堕檺鍒?(300MB)
-    max_text_size: 50              # 鏂囨湰鏂囦欢澶у皬闄愬埗 (50MB)
+    # 文件大小限制（单位：MB）
+    max_subtitle_audio_size: 1024  # 字幕长音频文件限制 (1GB)
+    max_reference_audio_size: 300  # 参考音频/短音频文件限制 (300MB)
+    max_text_size: 50              # 文本文件大小限制 (50MB)
     
-    # 鍏佽鐨勬枃浠舵墿灞曞悕
+    # 允许的文件扩展名
     allowed_audio_extensions:
       - .wav
       - .mp3
@@ -38,58 +38,58 @@ api:
       - .txt
       - .md
 
-# TTS 妯″瀷璁剧疆
+# TTS 模型设置
 tts:
-  # 璺緞璁剧疆
+  # 路径设置
   paths:
-    # 妯″瀷鏍圭洰褰曪紙璇ョ洰褰曢€氬父鍖呭惈鎵€鏈夋ā鍨嬫枃浠跺す锛?
+    # 模型根目录（该目录通常包含所有模型文件夹）
     models_root: "models"
   
-  # 妯″瀷榛樿璁剧疆锛堣繍琛屾椂锛?
+  # 模型默认设置（运行时）
   model:
     runtime_settings:
-      use_cuda_kernel: false # 鏄惁浣跨敤 CUDA Kernel
-      use_deepspeed: false   # 鏄惁浣跨敤 Deepspeed
-      unload_after_gen: true # 鐢熸垚瀹屾瘯鍚庢槸鍚﹂噴鏀炬樉瀛橈紙鑺傜渷鏄惧瓨锛屼絾浼氬鍔犱笅娆＄敓鎴愮瓑寰呮椂闂达級
+      use_cuda_kernel: false # 是否使用 CUDA Kernel
+      use_deepspeed: false   # 是否使用 Deepspeed
+      unload_after_gen: true # 生成完毕后是否释放显存（节省显存，但会增加下次生成等待时间）
 
-  # 澶氱増鏈ā鍨嬮厤缃?
+  # 多版本模型配置
   versions:
     "V1.5":
       module: "app.core.indextts.infer"
       class_name: "IndexTTS"
-      # 妯″瀷鐩綍锛堝鏋滅敤鎴蜂笉鍙嚜瀹氫箟锛岃涓嶈淇敼锛?
+      # 模型目录（如果用户不可自定义，请不要修改）
       model_dir: "IndexTTS-1.5"
       config_file: "config.yaml"
       
     "V2.0":
       module: "app.core.indextts.infer_v2"
       class_name: "IndexTTS2"
-      # 妯″瀷鐩綍
+      # 模型目录
       model_dir: "IndexTTS-2"
       config_file: "config.yaml"
   
-  # 瀛楀箷鐢熸垚璁剧疆
+  # 字幕生成设置
   subtitle:
-    # 鏄惁寮€鍚瓧骞曠敓鎴愬姛鑳斤紙榛樿鍏抽棴锛岀敱鐢ㄦ埛閫氳繃 API 鍙傛暟 generate_subtitle 鎺у埗锛?
+    # 是否开启字幕生成功能（默认关闭，由用户通过 API 参数 generate_subtitle 控制）
     enabled: false
-    # Whisper 妯″瀷璺緞锛堢浉瀵逛簬 models_root锛?
+    # Whisper 模型路径（相对于 models_root）
     whisper_model: "whisper/faster-whisper-large-v2"
-    # Whisper 鎺ㄧ悊鍙傛暟
+    # Whisper 推理参数
     whisper_config:
-      beam_size: 5              # Beam search 鍊嶇巼澶у皬锛屽奖鍝嶈浆褰曞噯纭害
-      word_timestamps: true     # 鍚敤璇嶇骇鏃堕棿鎴筹紙蹇呴』涓?true锛?
-    # 鏂囨湰瀵归綈璁剧疆
+      beam_size: 5              # Beam search 倍率大小，影响转录准确度
+      word_timestamps: true     # 启用词级时间戳（必须为 true）
+    # 文本对齐设置
     alignment:
-      match_threshold: 75       # 妯＄硦鍖归厤闃堝€?(0-100)锛屼綆浜庢鍊艰涓哄尮閰嶅け璐?
-      search_window_multiplier: 3  # 鎼滅储绐楀彛澶у皬鏁帮紝璁＄畻绐楀彛澶у皬 = 鏂囨湰瀛楁暟 脳 鍊嶆暟 + 20绉?
+      match_threshold: 75       # 模糊匹配阈值 (0-100)，低于此值认为匹配失败
+      search_window_multiplier: 3  # 搜索窗口大小数，计算窗口大小 = 文本字数 × 倍数 + 20秒
 
-# 鏃ュ織鏂囦欢鍔ㄦ€佹竻鐞嗚缃紙娓呯悊 logs/latest.log锛?
+# 日志文件动态清理设置（清理 logs/latest.log）
 log_cleanup:
-  # 妫€鏌ュ畾鏃堕棿闅旓紙鍒嗛挓锛?
+  # 检查定时间隔（分钟）
   check_interval_minutes: 30
-  # latest.log 杈惧埌澶氬ぇ锛圡B锛夋椂杩涜鎵撳寘褰掓。
+  # latest.log 达到多大（MB）时进行打包归档
   max_size_mb: 5
-  # 褰掓。鍚?latest.log 淇濈暀鏈€杩戠殑琛屾暟锛? = 瀹屽叏娓呯┖锛?
+  # 归档后 latest.log 保留最近的行数（0 = 完全清空）
   keep_lines: 200
-  # logs/ 鐩綍涓嬫渶澶氫繚鐣欑殑鍘嗗彶褰掓。鏂囦欢鏁伴噺
+  # logs/ 目录下最多保留的历史归档文件数量
   max_archives: 7
