@@ -37,6 +37,9 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# Fix libgomp warning when OMP_NUM_THREADS is set to an invalid value
+export OMP_NUM_THREADS=1
+
 # Color definitions
 CYAN='\033[0;36m'
 GREEN='\033[0;32m'

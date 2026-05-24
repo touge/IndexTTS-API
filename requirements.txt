@@ -57,5 +57,7 @@ torchcodec
 # =========================
 # Conditional Dependencies
 # =========================
-wetext>=0.0.9; sys_platform != 'linux'
-# WeTextProcessing; sys_platform == 'linux'
+# wetext>=0.0.9; sys_platform != 'linux'  # uninstall wetext on Linux before installing WeTextProcessing
+WeTextProcessing; sys_platform == 'linux'
+opencc-python-reimplemented
+thefuzz

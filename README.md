@@ -53,6 +53,30 @@ cp config.yaml.example config.yaml
 # 编辑 config.yaml 设置模型路径和 API token
 ```
 
+> ⚠️ **Linux 部署必读：以下依赖安装可能失败，需特别处理**
+
+### WeTextProcessing（中文文本正则化，Linux 必须）
+
+该包依赖 C++ OpenFST 库，需要本地编译环境。**极有可能 `pip install` 直接失败**：
+
+```bash
+# 先安装编译工具链（Ubuntu/Debian）
+apt-get install -y build-essential python3-dev
+
+# 再安装
+pip install WeTextProcessing
+```
+
+> 如果编译仍然失败，可临时用 `pip install wetext` 替代（wetext 与 WeTextProcessing 功能相同，前者供 Windows/macOS 使用，但 Linux 上也能跑）。
+
+### OMP_NUM_THREADS 环境变量
+
+部分 Linux 环境预设了无效的 `OMP_NUM_THREADS` 值，导致运行时出现 `libgomp: Invalid value for environment variable` 警告。P8001.sh 启动脚本已内置修复，直接使用 P8001.sh 启动即可。如手动启动，先执行：
+
+```bash
+export OMP_NUM_THREADS=1
+```
+
 ### 启动服务
 
 ```bash
