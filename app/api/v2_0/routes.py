@@ -161,6 +161,10 @@ async def generate_v2_0(
             params=params
         )
         return TaskSubmitResponse(data=TaskSubmitData(task_id=task_id))
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail={"error": "model_disabled", "message": str(e)})
     except Exception as e:
         logger.error(f"Failed to submit V2.0 task: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -368,6 +372,8 @@ async def generate_v2_0_with_emo_mode(
         return TaskSubmitResponse(data=TaskSubmitData(task_id=task_id))
     except HTTPException:
         raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail={"error": "model_disabled", "message": str(e)})
     except Exception as e:
         logger.error(f"Failed to submit V2.0 task: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

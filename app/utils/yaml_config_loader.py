@@ -27,7 +27,7 @@ class YamlConfigLoader:
         # 1. 加载原始的 YAML 数据
         if not self.config_path.is_file():
             raise FileNotFoundError(f"配置文件未找到: {self.config_path}")
-        with open(self.config_path, 'r', encoding='utf-8') as f:
+        with open(self.config_path, 'r', encoding='utf-8-sig') as f:
             raw_data = yaml.safe_load(f)
         
         # 2. 保存一份原始数据的副本

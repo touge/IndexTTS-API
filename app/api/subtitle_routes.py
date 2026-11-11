@@ -221,6 +221,8 @@ async def generate_subtitle(
     
     except HTTPException:
         raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail={"error": "model_disabled", "message": str(e)})
     except Exception as e:
         logger.error(f"Failed to submit subtitle generation task: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

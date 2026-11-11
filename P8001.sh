@@ -2,14 +2,6 @@
 # ========================================
 # IndexTTS API Startup Script
 # ========================================
-# Auto-detect Python environment and start IndexTTS API service
-# Support custom IP address and port
-#
-# Usage:
-#   ./P8001.sh
-#   ./P8001.sh --port 9000
-#   ./P8001.sh --host 127.0.0.1 --port 9000
-# ========================================
 
 # Default parameters
 HOST_ADDRESS=""
@@ -52,84 +44,47 @@ echo -e "${CYAN}  IndexTTS API Startup Script${NC}"
 echo -e "${CYAN}========================================${NC}"
 echo ""
 
-# Check if local python3.11 directory exists
-LOCAL_PYTHON_DIR="$SCRIPT_DIR/python3.11"
-USE_PYTHON_CMD="python"
+# ----------------- 优化后的环境激活逻辑 -----------------
+# 寻找 Conda 初始化脚本
+CONDA_SH=$(find ~/.conda ~/anaconda3 ~/miniconda3 /opt/conda /opt/anaconda3 -name "conda.sh" 2>/dev/null | head -1)
 
-if [ -d "$LOCAL_PYTHON_DIR" ]; then
-    echo -e "${GREEN}[INFO] Found local Python environment: $LOCAL_PYTHON_DIR${NC}"
-    PYTHON_EXE="$LOCAL_PYTHON_DIR/python"
-    
-    if [ -x "$PYTHON_EXE" ]; then
-        echo -e "${GREEN}[INFO] Using local Python: $PYTHON_EXE${NC}"
-        USE_PYTHON_CMD="$PYTHON_EXE"
-    else
-        echo -e "${YELLOW}[WARNING] python not found in local environment, trying conda...${NC}"
-        
-        # Fallback to conda
-        if command -v conda &> /dev/null; then
-            echo -e "${YELLOW}[INFO] Activating conda environment: python3.11 ...${NC}"
-            # Source conda and activate
-            # Try to find conda.sh
-            CONDA_SH=$(find ~/.conda ~/anaconda3 ~/miniconda3 /opt/conda /opt/anaconda3 -name "conda.sh" 2>/dev/null | head -1)
-            if [ -n "$CONDA_SH" ]; then
-                source "$CONDA_SH" activate python3.11
-                if [ $? -ne 0 ]; then
-                    echo -e "${RED}[ERROR] Failed to activate conda environment${NC}"
-                    read -p "Press Enter to exit..."
-                    exit 1
-                fi
-                echo -e "${GREEN}[SUCCESS] Conda environment activated${NC}"
-            else
-                echo -e "${YELLOW}[INFO] conda.sh not found, trying 'conda activate' directly...${NC}"
-                eval "$(conda shell.bash hook)" 2>/dev/null
-                conda activate python3.11
-                if [ $? -ne 0 ]; then
-                    echo -e "${RED}[ERROR] Failed to activate conda environment${NC}"
-                    read -p "Press Enter to exit..."
-                    exit 1
-                fi
-                echo -e "${GREEN}[SUCCESS] Conda environment activated${NC}"
-            fi
-        else
-            echo -e "${RED}[ERROR] Neither local Python nor conda found${NC}"
-            read -p "Press Enter to exit..."
-            exit 1
-        fi
-    fi
+if [ -n "$CONDA_SH" ]; then
+    source "$CONDA_SH"
 else
-    echo -e "${YELLOW}[INFO] Local python3.11 directory not found, using conda...${NC}"
+    eval "$(conda shell.bash hook)" 2>/dev/null
+fi
+
+LOCAL_PYTHON_DIR="$SCRIPT_DIR/python3.11"
+
+# 优先激活本地指定的 python3.11 文件夹环境
+if [ -d "$LOCAL_PYTHON_DIR" ]; then
+    echo -e "${GREEN}[INFO] Found local Conda environment directory: $LOCAL_PYTHON_DIR${NC}"
+    echo -e "${YELLOW}[INFO] Activating local environment via path...${NC}"
     
-    # Check if conda is available
-    if ! command -v conda &> /dev/null; then
-        echo -e "${RED}[ERROR] conda command not found${NC}"
+    conda activate "$LOCAL_PYTHON_DIR"
+    
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}[SUCCESS] Local Conda environment activated${NC}"
+        USE_PYTHON_CMD="python"
+    else
+        echo -e "${RED}[ERROR] Failed to activate local environment path${NC}"
         read -p "Press Enter to exit..."
         exit 1
     fi
-    
-    echo -e "${YELLOW}[INFO] Activating conda environment: python3.11 ...${NC}"
-    # Source conda and activate
-    CONDA_SH=$(find ~/.conda ~/anaconda3 ~/miniconda3 /opt/conda /opt/anaconda3 -name "conda.sh" 2>/dev/null | head -1)
-    if [ -n "$CONDA_SH" ]; then
-        source "$CONDA_SH" activate python3.11
-        if [ $? -ne 0 ]; then
-            echo -e "${RED}[ERROR] Failed to activate conda environment${NC}"
-            read -p "Press Enter to exit..."
-            exit 1
-        fi
-        echo -e "${GREEN}[SUCCESS] Conda environment activated${NC}"
+else
+    # 如果不存在局部文件夹，尝试激活名为 python3.11 的标准命名环境
+    echo -e "${YELLOW}[INFO] Local directory not found, trying named environment: python3.11 ...${NC}"
+    conda activate python3.11
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}[SUCCESS] Conda environment [python3.11] activated${NC}"
+        USE_PYTHON_CMD="python"
     else
-        echo -e "${YELLOW}[INFO] conda.sh not found, trying 'conda activate' directly...${NC}"
-        eval "$(conda shell.bash hook)" 2>/dev/null
-        conda activate python3.11
-        if [ $? -ne 0 ]; then
-            echo -e "${RED}[ERROR] Failed to activate conda environment${NC}"
-            read -p "Press Enter to exit..."
-            exit 1
-        fi
-        echo -e "${GREEN}[SUCCESS] Conda environment activated${NC}"
+        echo -e "${RED}[ERROR] Failed to activate any valid python3.11 environment${NC}"
+        read -p "Press Enter to exit..."
+        exit 1
     fi
 fi
+# -----------------------------------------------------
 
 echo ""
 
@@ -155,16 +110,13 @@ if [ -n "$HOST_ADDRESS" ] || [ "$PORT" -ne 0 ]; then
         ORIGINAL_CONFIG=$(cat config.yaml)
         
         if [ -n "$HOST_ADDRESS" ]; then
-            # Match host: under server: block with any leading whitespace
             sed -i '/^server:/,/^[a-zA-Z]/ s/^[[:space:]]*host:.*/  host: '"$HOST_ADDRESS"'/' config.yaml
             echo -e "${CYAN}  - Set Host: $HOST_ADDRESS${NC}"
         fi
         if [ "$PORT" -ne 0 ]; then
-            # Match port: under server: block with any leading whitespace
             sed -i '/^server:/,/^[a-zA-Z]/ s/^[[:space:]]*port:.*/  port: '"$PORT"'/' config.yaml
             echo -e "${CYAN}  - Set Port: $PORT${NC}"
         fi
-
 
         CONFIG_MODIFIED=true
     else

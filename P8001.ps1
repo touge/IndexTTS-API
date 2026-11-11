@@ -104,45 +104,16 @@ if (-not (Test-Path "main.py")) {
     exit 1
 }
 
-# Build startup command
-$pythonCmd = "$usePythonCmd main.py"
-
-# If Host or Port is specified, temporarily modify config.yaml
-$configModified = $false
-$originalConfig = ""
-
-if ($HostAddress -ne "" -or $Port -ne 0) {
-    Write-Host "[INFO] Custom parameters detected, updating config..." -ForegroundColor Yellow
-    
-    if (Test-Path "config.yaml") {
-        # Backup original config
-        $originalConfig = Get-Content "config.yaml" -Raw
-        
-        # Read config file
-        $config = Get-Content "config.yaml" -Raw
-        
-        # Update Host in server section
-        if ($HostAddress -ne "") {
-            # Match: server:\n  host: xxx
-            $config = $config -replace "(?ms)(server:\s*\r?\n\s*host:\s*)([^\r\n]+)", "`${1}$HostAddress"
-            Write-Host "  - Set Host: $HostAddress" -ForegroundColor Cyan
-        }
-        
-        # Update Port in server section
-        if ($Port -ne 0) {
-            # Match: server:\n  ...  port: xxx
-            $config = $config -replace "(?ms)(server:.*?\r?\n.*?port:\s*)(\d+)", "`${1}$Port"
-            Write-Host "  - Set Port: $Port" -ForegroundColor Cyan
-        }
-        
-        # Write back to config file
-        Set-Content "config.yaml" -Value $config -NoNewline -Encoding UTF8
-        $configModified = $true
-    } else {
-        Write-Host "[WARNING] config.yaml not found, will use default config" -ForegroundColor Yellow
-    }
+# Build startup arguments (pass -ip / -p directly to main.py without mutating config.yaml)
+$pyArgs = @("main.py")
+if ($HostAddress -ne "") {
+    $pyArgs += @("-ip", $HostAddress)
+    Write-Host "  - Set Host: $HostAddress" -ForegroundColor Cyan
 }
-
+if ($Port -ne 0) {
+    $pyArgs += @("-p", "$Port")
+    Write-Host "  - Set Port: $Port" -ForegroundColor Cyan
+}
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
@@ -151,22 +122,18 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
 # Start service
+$exitCode = 0
 try {
-    Invoke-Expression $pythonCmd
+    & $usePythonCmd @pyArgs
+    $exitCode = $LASTEXITCODE
 } catch {
     Write-Host ""
     Write-Host "[ERROR] Service startup failed: $_" -ForegroundColor Red
+    $exitCode = 1
 } finally {
-    # Restore original config
-    if ($configModified -and $originalConfig -ne "") {
-        Write-Host ""
-        Write-Host "[INFO] Restoring original config..." -ForegroundColor Yellow
-        Set-Content "config.yaml" -Value $originalConfig -NoNewline
-        Write-Host "[SUCCESS] Config restored" -ForegroundColor Green
-    }
-    
     Write-Host ""
     Write-Host "========================================" -ForegroundColor Cyan
     Write-Host "  Service stopped" -ForegroundColor Cyan
     Write-Host "========================================" -ForegroundColor Cyan
 }
+exit $exitCode

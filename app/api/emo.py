@@ -34,10 +34,10 @@ def _validate_emo_path(p: str) -> None:
             detail={"success": False, "error": "Only voices/emo_audios/ directory is allowed for emotions", "code": -1}
         )
 
-@router.get("/", response_model=EmotionListResponse)
+@router.get("/", response_model=EmotionListResponse, deprecated=True)
 def get_emotions(token: str = Depends(verify_token)):
     """
-    获取情绪音列表
+    获取情绪音列表（兼容旧路径；新接入推荐使用规范复数接口 GET /emotions，或简写别名 GET /emos）
     
     返回情绪音列表并按子目录分类聚合。
     获取到的 `path` 字段可直接作为生成请求中的 `emo_audio_prompt`。

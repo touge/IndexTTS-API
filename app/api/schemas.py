@@ -59,6 +59,7 @@ class TaskData(BaseModel):
     created_timestamp: float = 0.0        # 原始时间戳（用于程序处理）
     current_chunk: Optional[int] = None   # 当前合成的段落索引（长文本分段时有效）
     total_chunks: Optional[int] = None    # 合成文本的总分段数（长文本分段时有效）
+    progress: Optional[int] = None        # 任务进度百分比 (0-100)
     download_url: Optional[str] = None    # 流式下载链接（推荐，仅 completed 状态）
     file_url: Optional[str] = None        # 静态文件链接（备用，仅 completed 状态）
     subtitle_url: Optional[str] = None    # 字幕文件下载链接（仅 completed 状态且生成了字幕）
@@ -70,7 +71,24 @@ class TaskStatusResponse(BaseResponse):
     外层通过 status (pending, processing, completed, failed) 标识任务状态
     任务的全部详细信息统一位于 data 字段中
     """
+    progress: Optional[int] = None
     data: Optional[TaskData] = None
+
+class FreeRequest(BaseModel):
+    """显存释放请求参数"""
+    unload_models: bool = True
+    free_memory: bool = True
+
+class ModelConfigRequest(BaseModel):
+    """运行时模型配置与按需预加载/卸载参数"""
+    enabled_versions: Optional[List[str]] = None
+    subtitle_enabled: Optional[bool] = None
+    unload_after_gen: Optional[bool] = None
+    idle_unload_seconds: Optional[int] = None
+    preload_version: Optional[str] = None
+    action: Optional[str] = Field(None, description="可选动作: 'load' 或 'unload'")
+    version: Optional[str] = Field(None, description="当 action='load' 时指定加载的模型版本，如 V1.5 / V2.0")
+    load_subtitle: bool = False
 
 # ==========================================
 # 请求参数模型 (Request Models)

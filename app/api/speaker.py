@@ -34,10 +34,10 @@ def _validate_speaker_path(p: str) -> None:
             detail={"success": False, "error": "Only voices/ref_audios/ directory is allowed for speakers", "code": -1}
         )
 
-@router.get("/", response_model=SpeakerListResponse)
+@router.get("/", response_model=SpeakerListResponse, deprecated=True)
 def get_speakers(token: str = Depends(verify_token)):
     """
-    获取发音人参考音列表
+    获取发音人参考音列表（兼容旧路径；新接入推荐使用规范复数接口 GET /speakers）
     
     返回发音人列表并按子目录分类聚合。
     获取到的 `path` 字段可直接作为生成请求中的 `spk_audio_prompt`。

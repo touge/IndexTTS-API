@@ -107,6 +107,35 @@ app.include_router(subtitle_routes.router, prefix="/subtitle", tags=["Subtitle"]
 app.include_router(v1_5_routes.router, prefix="/v1.5", tags=["V1.5"])
 app.include_router(v2_0_routes.router, prefix="/v2.0", tags=["V2.0"])
 
+
+@app.get("/speakers", response_model=speaker.SpeakerListResponse, tags=["Speaker"])
+def list_speakers(token: str = Depends(verify_token)):
+    """
+    获取发音人参考音列表（规范复数入口，免末尾斜杠）
+
+    与旧路径 `GET /speaker/` 返回结构完全一致，新接入请优先使用本接口。
+    """
+    return speaker.get_speakers(token=token)
+
+
+@app.get("/emotions", response_model=emo.EmotionListResponse, tags=["Emotion"])
+def list_emotions(token: str = Depends(verify_token)):
+    """
+    获取情绪音列表（规范复数入口，免末尾斜杠）
+
+    与 `GET /emos` 及旧路径 `GET /emo/` 返回结构完全一致，新接入请优先使用本接口。
+    """
+    return emo.get_emotions(token=token)
+
+
+@app.get("/emos", response_model=emo.EmotionListResponse, tags=["Emotion"])
+def list_emotions_alias(token: str = Depends(verify_token)):
+    """
+    获取情绪音列表（`/emotions` 简写兼容别名，免末尾斜杠）
+    """
+    return emo.get_emotions(token=token)
+
+
 @app.get("/")
 async def root(token: str = Depends(verify_token)):
     """
@@ -123,6 +152,13 @@ async def root(token: str = Depends(verify_token)):
             "v2.0": ["/v2.0/generate", "/v2.0/emo_mode/generate"],
             "subtitle": "/subtitle/generate",
             "status": "/status/{task_id}",
+            "cancel": "/cancel/{task_id}",
+            "free": "/free",
+            "model_status": "/model/status",
+            "model_config": "/model/config",
+            "speakers": "/speakers",
+            "emotions": "/emotions",
+            "emos": "/emos",
             "speaker": "/speaker",
             "emo": "/emo",
             "static_voices": "/static/voices/{file_path}",

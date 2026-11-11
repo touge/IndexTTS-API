@@ -183,7 +183,7 @@ uvicorn app.api.main:app --host 0.0.0.0 --port 8000 --workers 1
 ### 3. 发音人参考资源管理 (Speaker)
 | 端点 | 方法 | 功能 |
 |------|------|------|
-| `/speaker/` | GET | 获取系统当前所有发音人列表及分类树 |
+| `/speakers` | GET | 获取系统当前所有发音人列表及分类树（推荐规范入口；旧 `/speaker/` 保留兼容并标为 deprecated） |
 | `/speaker/category` | POST | 新增空的分类存放发音人 |
 | `/speaker/upload` | POST | 上传新的发音人 (带有同名防冲突校验) |
 | `/speaker/rename` | PUT | 对发音人进行重命名或移动分类 |
@@ -192,7 +192,7 @@ uvicorn app.api.main:app --host 0.0.0.0 --port 8000 --workers 1
 ### 4. 情绪音参考资源管理 (Emotion)
 | 端点 | 方法 | 功能 |
 |------|------|------|
-| `/emo/` | GET | 获取系统当前所有情绪音列表及分类树 |
+| `/emotions` | GET | 获取系统当前所有情绪音列表及分类树（推荐规范入口；同时兼容简写 `/emos` 及标为 deprecated 的旧 `/emo/`） |
 | `/emo/category` | POST | 新增空的分类存放情绪音 |
 | `/emo/upload` | POST | 上传新的情绪音 (带有同名防冲突校验) |
 | `/emo/rename` | PUT | 对情绪音进行重命名或移动分类 |
@@ -302,11 +302,12 @@ with open("result.srt", "wb") as f:
 
 ### 3. 发音人与情绪音资源管理
 
-**3.1 获取所有声音列表 (GET /speaker/ | /emo/)**
+**3.1 获取所有声音列表 (GET /speakers | /emotions，兼容 /emos 及旧 path /speaker/ | /emo/)**
 ```python
 import requests
 headers = {"Authorization": "Bearer your-token"}
-response = requests.get("http://localhost:8000/speaker/", headers=headers)
+speakers = requests.get("http://localhost:8000/speakers", headers=headers).json()
+emotions = requests.get("http://localhost:8000/emotions", headers=headers).json()
 ```
 
 **3.2 创建空分类 (POST /speaker/category | /emo/category)**
